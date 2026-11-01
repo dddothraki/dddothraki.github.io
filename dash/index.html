@@ -71,6 +71,13 @@
   #lbForm { display:flex; gap:8px; }
   #lbIn { flex:1; min-width:0; font:inherit; font-size:16px; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.3);
     background:rgba(0,0,0,.45); color:#fff; -webkit-user-select:text; user-select:text; }
+  #lbCodeRow { width:100%; }
+  #lbCode { width:100%; font:inherit; font-size:16px; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.3);
+    background:rgba(0,0,0,.45); color:#fff; letter-spacing:2px; text-transform:uppercase; -webkit-user-select:text; user-select:text; }
+  #lbMeBox { width:100%; max-width:290px; display:flex; flex-direction:column; gap:6px; align-items:center; }
+  #lbMeBox #lbForm { width:100%; }
+  #lbMe .code { color:var(--gold); letter-spacing:1px; }
+  .how.small { font-size:12px; }
   #lbPost { padding:10px 16px; background:var(--gold); }
   #lbPost:disabled { opacity:.6; }
   .linkbtn { background:none; padding:0; color:var(--gold); font-size:13px; font-weight:700; text-decoration:underline; border-radius:0; }
@@ -86,6 +93,7 @@
   #lbList .rk { width:22px; color:var(--muted); font-weight:800; text-align:right; }
   #lbList li:nth-child(-n+3) .rk { color:var(--gold); }
   #lbList .nm { flex:1; text-align:left; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #lbList .own { font-size:13px; }
   #lbList .mt { color:var(--muted); font-size:12px; }
   #lbList .sc { min-width:48px; text-align:right; font-weight:900; color:var(--gold); }
 </style>
@@ -135,6 +143,7 @@
     <p class="how" id="oBest"></p>
     <div id="lb" class="hidden">
       <div id="lbForm" class="hidden"><input id="lbIn" maxlength="12" placeholder="Your name" aria-label="Your name" autocomplete="nickname" enterkeyhint="send" spellcheck="false" autocapitalize="off"><button id="lbPost">Post</button></div>
+      <div id="lbCodeRow" class="hidden"><input id="lbCode" maxlength="9" placeholder="Name code (ABCD-2345)" aria-label="Name code" autocomplete="off" spellcheck="false" autocapitalize="characters"></div>
       <p id="lbName" class="how hidden">Playing as <b id="lbWho"></b> · <button id="lbChange" class="linkbtn">change</button></p>
       <p id="lbMsg" class="how"></p>
     </div>
@@ -155,6 +164,11 @@
     <ol id="lbList"></ol>
     <p id="lbEmpty" class="how hidden"></p>
     <p id="lbReset" class="how"></p>
+    <div id="lbMeBox">
+      <p id="lbMe" class="how"></p>
+      <p id="lbMeHint" class="how small"></p>
+      <button id="lbMeBtn" class="linkbtn">Change name · use a name code</button>
+    </div>
     <button id="lbBack" class="big">Back</button>
   </div>
 

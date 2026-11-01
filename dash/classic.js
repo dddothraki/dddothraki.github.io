@@ -49,7 +49,7 @@
   let lastSize = '';
   function resize() {
     // niet herschalen terwijl het toetsenbord open is (naam typen voor de high scores)
-    if (document.activeElement && document.activeElement.id === 'lbIn') return;
+    if (document.activeElement && /^lb(In|Code)$/.test(document.activeElement.id)) return;
     const vw = window.innerWidth, vh = window.innerHeight;
     const size = vw + 'x' + vh + 'x' + (window.devicePixelRatio || 1);
     if (size === lastSize) return;
@@ -417,6 +417,7 @@
     G.banners = []; // geen losse teksten achter het eindscherm
     Sound.bed(false);
     const m = meters(), s = score();
+  { const sb = store.get('best', null); if (sb && typeof sb.score === 'number' && sb.score > best.score) best = { score: sb.score, meters: Math.max(sb.meters || 0, best.meters) }; }
     const isBest = s > best.score;
     if (isBest) best = { score: s, meters: Math.max(m, best.meters) };
     else if (m > best.meters) best.meters = m;

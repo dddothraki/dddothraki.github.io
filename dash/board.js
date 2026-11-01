@@ -35,6 +35,30 @@
     }, function (e) { clearTimeout(timer); throw e; });
   }
 
+  // naamcode: 8 tekens, hoort bij dit apparaat. Wie een naam als eerste gebruikt, claimt die met deze code.
+  // Op een nieuwe telefoon typ je dezelfde code in om je naam (en je beste score) terug te krijgen.
+  var KEY_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  function cleanKey(k) { var c = String(k || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); return /^[A-HJ-NP-Z2-9]{8}$/.test(c) ? c : null; }
+  function myKey() {
+    var k = cleanKey(store.get('key', ''));
+    if (!k) {
+      var r = new Uint8Array(8);
+      try { crypto.getRandomValues(r); } catch (e) { for (var j = 0; j < 8; j++) r[j] = Math.random() * 256; }
+      k = '';
+      for (var i = 0; i < 8; i++) k += KEY_ABC[r[i] % 32];
+      store.set('key', k);
+    }
+    return k;
+  }
+  function fmtKey(k) { return k.slice(0, 4) + '-' + k.slice(4); }
+  // beste score van de server overnemen (nieuwe telefoon); het spel leest 'best' bij het eindscherm
+  function takeBest(b) {
+    if (!b || typeof b.score !== 'number') return;
+    var cur = store.get('best', null);
+    if (!cur || typeof cur.score !== 'number' || b.score > cur.score) store.set('best', { score: b.score, meters: Math.max(b.meters, (cur && cur.meters) || 0) });
+    var p = posted(); p.allBest = Math.max(p.allBest, b.score); store.set('posted', p);
+  }
+
   var tokenP = null;   // token van de lopende run
   var nextTok = null;  // alvast opgehaald token voor de volgende run (tijd ligt dan zeker vóór de start)
   var pending = null;  // naam om in te sturen zodra de vorige verzending klaar is
@@ -49,56 +73,92 @@
     return ordinal(r.day) + ' today · ' + ordinal(r.week) + ' this week · ' + ordinal(r.all) + ' all time';
   }
   function setMsg(t, cls) { var m = $('lbMsg'); m.textContent = t; m.className = 'how' + (cls ? ' ' + cls : ''); }
-  function showForm(on) {
+  function showForm(on, withCode) {
     $('lbForm').classList.toggle('hidden', !on);
+    $('lbCodeRow').classList.toggle('hidden', !(on && withCode));
+    if (on && withCode) $('lbCode').value = '';
     $('lbName').classList.toggle('hidden', on || !store.get('name', ''));
+    drawMe();
+  }
+  // formulier en melding verhuizen naar het scherm waar je bent (eindscherm of high scores)
+  function placeForm(where) {
+    var box = where === 'board' ? $('lbMeBox') : $('lb');
+    var anchor = where === 'board' ? $('lbMeBtn') : $('lbName');
+    box.insertBefore($('lbForm'), anchor);
+    box.insertBefore($('lbCodeRow'), anchor);
+    box.appendChild($('lbMsg'));
+  }
+  function drawMe() {
+    var name = store.get('name', ''), claimed = store.get('claimed', false);
+    var me = $('lbMe');
+    me.textContent = '';
+    if (name && claimed) {
+      me.appendChild(document.createTextNode('You: '));
+      var b = document.createElement('b'); b.textContent = name; me.appendChild(b);
+      me.appendChild(document.createTextNode(' · name code '));
+      var c = document.createElement('b'); c.className = 'code'; c.textContent = fmtKey(myKey()); me.appendChild(c);
+      $('lbMeHint').textContent = 'Write the code down! On a new phone it gets your name and best score back.';
+    } else {
+      $('lbMeHint').textContent = 'Got a name code from another phone? Use it here.';
+    }
   }
 
-  function post(name) {
-    if (!run) return;
-    if (sending) { pending = name; return; }
-    if (run.done) { // deze run staat er al; nieuwe naam geldt vanaf de volgende run
-      store.set('name', String(name).trim());
-      $('lbWho').textContent = String(name).trim();
-      showForm(false);
-      setMsg('Name saved. It counts from your next run.');
-      return;
-    }
-    var data = run;
+  function post(name, code) {
+    var key = code ? cleanKey(code) : myKey();
+    if (code && !key) { setMsg('A name code has 8 letters and numbers, like ABCD-2345.', 'lbbad'); return; }
+    if (sending) { pending = { name: name, code: code }; return; }
+    var data = run && !run.done ? run : null; // geen run (of al ingestuurd): alleen de naam claimen
     sending = true;
     $('lbPost').disabled = true;
-    setMsg('Posting…');
-    (tokenP || Promise.resolve(null)).then(function (token) {
+    setMsg(data ? 'Posting…' : 'Checking…');
+    var p = data ? (tokenP || Promise.resolve(null)).then(function (token) {
       if (!token) throw new Error('offline');
-      return req('/score', { token: token, name: name, score: data.score, meters: data.meters, loot: data.loot, coins: data.coins });
-    }).then(function (j) {
+      return req('/score', { token: token, key: key, name: name, score: data.score, meters: data.meters, loot: data.loot, coins: data.coins });
+    }) : req('/claim', { key: key, name: name });
+    p.then(function (j) {
       done();
-      if (run !== data) { flush(); return; }
+      if (data && run !== data) { flush(); return; }
       if (j.ok) {
-        tokenP = null; // token is gebruikt
+        if (data) {
+          tokenP = null; // token is gebruikt
+          var ps = posted();
+          ps.dayBest = Math.max(ps.dayBest, data.score); ps.weekBest = Math.max(ps.weekBest, data.score); ps.allBest = Math.max(ps.allBest, data.score);
+          store.set('posted', ps);
+          data.done = true;
+        }
         store.set('name', j.name);
-        var p = posted();
-        p.dayBest = Math.max(p.dayBest, data.score); p.weekBest = Math.max(p.weekBest, data.score); p.allBest = Math.max(p.allBest, data.score);
-        store.set('posted', p);
-        data.done = true;
+        store.set('key', key);
+        store.set('claimed', true);
+        takeBest(j.best);
         showForm(false);
         $('lbWho').textContent = j.name;
-        setMsg(rankText(j.ranks), 'lbgood');
+        if (data) setMsg(rankText(j.ranks), 'lbgood');
+        else setMsg(code ? 'Welcome back, ' + j.name + '!' : 'Your name is now ' + j.name + '.', 'lbgood');
         cache = {};
+        if (api.open) load(tab);
+      } else if (j.error === 'taken') {
+        showForm(true, true);
+        setMsg(code ? "That code doesn't match this name." : 'This name is taken. Is it yours? Enter your name code.', 'lbbad');
       } else if (j.error === 'name') {
-        showForm(true);
+        showForm(true, !!code);
         setMsg('Pick another name: 3–12 letters or numbers, nothing rude.', 'lbbad');
       } else if (j.status === 429) {
         setMsg('Too many scores at once. Try again later.', 'lbbad');
-      } else {
+      } else if (data) {
         tokenP = null;
         setMsg("This run can't be posted. Try the next one!", 'lbbad');
+      } else {
+        setMsg('Something went wrong. Try again later.', 'lbbad');
       }
     }).catch(function () {
       done();
-      if (run !== data) { flush(); return; }
+      if (data && run !== data) { flush(); return; }
       setMsg("Couldn't reach the high scores. Check your internet.", 'lbbad');
     });
+  }
+  function submitForm() {
+    var code = $('lbCodeRow').classList.contains('hidden') ? '' : $('lbCode').value.trim();
+    post($('lbIn').value, code || null);
   }
 
   // speelteller: alleen een willekeurig id per apparaat, verder niets
@@ -119,7 +179,7 @@
   }
   function done() { sending = false; $('lbPost').disabled = false; }
   // een nieuwere run wachtte op de vorige verzending
-  function flush() { var n = pending; pending = null; if (n && run && !run.done) post(n); }
+  function flush() { var n = pending; pending = null; if (n) post(n.name, n.code); }
 
   // ---------- lijst ----------
   var cache = {}, tab = 'day', backTo = [];
@@ -142,6 +202,7 @@
       if (me && String(r.name).toLowerCase() === me) li.className = 'me';
       var a = document.createElement('span'); a.className = 'rk'; a.textContent = i + 1;
       var b = document.createElement('span'); b.className = 'nm'; b.textContent = r.name;
+      if (r.owner) { var cr = document.createElement('span'); cr.className = 'own'; cr.textContent = ' 👑'; cr.title = 'Maker of Polder Dash'; b.appendChild(cr); }
       var d = document.createElement('span'); d.className = 'sc'; d.textContent = r.score;
       var e = document.createElement('span'); e.className = 'mt'; e.textContent = r.meters + ' m';
       li.appendChild(a); li.appendChild(b); li.appendChild(e); li.appendChild(d);
@@ -171,6 +232,10 @@
     backTo.forEach(function (id) { $(id).classList.add('hidden'); });
     $('board').classList.remove('hidden');
     api.open = true;
+    placeForm('board');
+    showForm(false);
+    setMsg('');
+    $('lbMeBtn').classList.remove('hidden');
     load(tab);
     $('lbBack').focus();
   }
@@ -178,6 +243,10 @@
     $('board').classList.add('hidden');
     backTo.forEach(function (id) { $(id).classList.remove('hidden'); });
     api.open = false;
+    var sb = store.get('best', null); // kan net via de naamcode zijn opgehaald
+    if (sb && sb.score > 0 && !$('title').classList.contains('hidden')) $('bestTitle').textContent = 'Your best: ' + sb.score + ' points · ' + sb.meters + ' m';
+    placeForm('over');
+    showForm(false);
   }
 
   // ---------- koppeling met het spel ----------
@@ -196,6 +265,7 @@
     runEnd: function (r) {
       run = { score: r.score, meters: r.meters, loot: r.loot, coins: r.coins, done: false };
       prefetch(); // token voor de volgende run
+      placeForm('over');
       var box = $('lb');
       box.classList.toggle('hidden', !(r.score > 0));
       if (!(r.score > 0)) return;
@@ -211,22 +281,35 @@
   window.DashBoard = api;
 
   function init() {
-    $('lbPost').addEventListener('click', function () { post($('lbIn').value); });
-    $('lbChange').addEventListener('click', function () { showForm(true); $('lbIn').focus(); if (run && run.done) setMsg('Post this run under a new name.'); });
-    var inp = $('lbIn');
-    // typen in het naamveld mag het spel niet starten of besturen
-    ['keydown', 'keyup'].forEach(function (t) {
-      inp.addEventListener(t, function (e) {
-        e.stopPropagation();
-        if (t === 'keydown' && e.key === 'Enter') { e.preventDefault(); post(inp.value); }
+    $('lbPost').addEventListener('click', submitForm);
+    $('lbChange').addEventListener('click', function () {
+      $('lbIn').value = store.get('name', '');
+      showForm(true); $('lbIn').focus();
+      setMsg(run && !run.done ? 'Post this run under another name.' : 'New name? It counts from your next run.');
+    });
+    $('lbMeBtn').addEventListener('click', function () {
+      $('lbIn').value = store.get('name', '');
+      showForm(true, true);
+      $('lbMeBtn').classList.add('hidden');
+      setMsg('Type your name. Coming from another phone? Add your name code.');
+      $('lbIn').focus();
+    });
+    ['lbIn', 'lbCode'].forEach(function (id) {
+      var inp = $(id);
+      // typen in de velden mag het spel niet starten of besturen
+      ['keydown', 'keyup'].forEach(function (t) {
+        inp.addEventListener(t, function (e) {
+          e.stopPropagation();
+          if (t === 'keydown' && e.key === 'Enter') { e.preventDefault(); submitForm(); }
+        });
+      });
+      inp.addEventListener('touchend', function (e) { e.stopPropagation(); });
+      inp.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+      // toetsenbord weg: pagina terug op zijn plek en opnieuw schalen
+      inp.addEventListener('blur', function () {
+        setTimeout(function () { window.scrollTo(0, 0); window.dispatchEvent(new Event('resize')); }, 60);
       });
     });
-    inp.addEventListener('touchend', function (e) { e.stopPropagation(); });
-    // toetsenbord weg: pagina terug op zijn plek en opnieuw schalen
-    inp.addEventListener('blur', function () {
-      setTimeout(function () { window.scrollTo(0, 0); window.dispatchEvent(new Event('resize')); }, 60);
-    });
-    inp.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
     $('lbOpen').addEventListener('click', openBoard);
     $('lbOpen2').addEventListener('click', openBoard);
     $('lbBack').addEventListener('click', closeBoard);
