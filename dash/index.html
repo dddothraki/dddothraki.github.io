@@ -93,7 +93,7 @@
   #lbList .rk { width:22px; color:var(--muted); font-weight:800; text-align:right; }
   #lbList li:nth-child(-n+3) .rk { color:var(--gold); }
   #lbList .nm { flex:1; text-align:left; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  #lbList .own { font-size:13px; }
+  #lbList .own { font-size:.9em; line-height:1; vertical-align:.18em; }
   #lbList .mt { color:var(--muted); font-size:12px; }
   #lbList .sc { min-width:48px; text-align:right; font-weight:900; color:var(--gold); }
 </style>
@@ -176,7 +176,7 @@
   </div>
 </div>
 <div id="rotate" class="hidden">📱 Turn your phone upright to play</div>
-<script src="board.js"></script>
+<script src="board.js?v=3"></script>
 <script>
   // 3D-versie (game3d.js, three.js). Geen WebGL of laadt three.js niet? Dan de platte versie (classic.js).
   window.__dashFallback = function (why) {

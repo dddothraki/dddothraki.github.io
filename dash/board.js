@@ -17,7 +17,9 @@
   // eigen beste ingestuurde score per periode, zodat we alleen insturen wat de lijst kan veranderen
   function posted() {
     var p = store.get('posted', null), now = Date.now();
-    if (!p || typeof p !== 'object') p = {};
+    var who = String(store.get('name', '')).toLowerCase();
+    if (!p || typeof p !== 'object' || (p.name !== undefined && p.name !== who)) p = {}; // andere naam: opnieuw
+    p.name = who;
     if (p.day !== utcDay(now)) { p.day = utcDay(now); p.dayBest = 0; }
     if (p.week !== utcWeek(now)) { p.week = utcWeek(now); p.weekBest = 0; }
     if (typeof p.allBest !== 'number') p.allBest = 0;
@@ -50,6 +52,18 @@
     }
     return k;
   }
+  // code voor een naam: een ingetypte code van een andere telefoon, anders de code van dit apparaat
+  function keyFor(name) {
+    var keys = store.get('keys', {});
+    var k = keys && typeof keys === 'object' ? cleanKey(keys[String(name || '').toLowerCase()]) : null;
+    return k || myKey();
+  }
+  function rememberKey(name, key) {
+    var keys = store.get('keys', {});
+    if (!keys || typeof keys !== 'object') keys = {};
+    keys[String(name).toLowerCase()] = key;
+    store.set('keys', keys);
+  }
   function fmtKey(k) { return k.slice(0, 4) + '-' + k.slice(4); }
   // beste score van de server overnemen (nieuwe telefoon); het spel leest 'best' bij het eindscherm
   function takeBest(b) {
@@ -74,9 +88,10 @@
   }
   function setMsg(t, cls) { var m = $('lbMsg'); m.textContent = t; m.className = 'how' + (cls ? ' ' + cls : ''); }
   function showForm(on, withCode) {
+    var wasHidden = $('lbCodeRow').classList.contains('hidden');
     $('lbForm').classList.toggle('hidden', !on);
     $('lbCodeRow').classList.toggle('hidden', !(on && withCode));
-    if (on && withCode) $('lbCode').value = '';
+    if (on && withCode && wasHidden) $('lbCode').value = '';
     $('lbName').classList.toggle('hidden', on || !store.get('name', ''));
     drawMe();
   }
@@ -96,7 +111,7 @@
       me.appendChild(document.createTextNode('You: '));
       var b = document.createElement('b'); b.textContent = name; me.appendChild(b);
       me.appendChild(document.createTextNode(' · name code '));
-      var c = document.createElement('b'); c.className = 'code'; c.textContent = fmtKey(myKey()); me.appendChild(c);
+      var c = document.createElement('b'); c.className = 'code'; c.textContent = fmtKey(keyFor(name)); me.appendChild(c);
       $('lbMeHint').textContent = 'Write the code down! On a new phone it gets your name and best score back.';
     } else {
       $('lbMeHint').textContent = 'Got a name code from another phone? Use it here.';
@@ -104,10 +119,11 @@
   }
 
   function post(name, code) {
-    var key = code ? cleanKey(code) : myKey();
+    var key = code ? cleanKey(code) : keyFor(String(name).trim());
     if (code && !key) { setMsg('A name code has 8 letters and numbers, like ABCD-2345.', 'lbbad'); return; }
     if (sending) { pending = { name: name, code: code }; return; }
-    var data = run && !run.done ? run : null; // geen run (of al ingestuurd): alleen de naam claimen
+    // geen run, al ingestuurd of niet meer in te sturen: alleen de naam claimen
+    var data = run && !run.done && tokenP ? run : null;
     sending = true;
     $('lbPost').disabled = true;
     setMsg(data ? 'Posting…' : 'Checking…');
@@ -117,8 +133,16 @@
     }) : req('/claim', { key: key, name: name });
     p.then(function (j) {
       done();
-      if (data && run !== data) { flush(); return; }
+      if (!(data && run !== data)) handle(j);
+      flush();
+    }).catch(function () {
+      done();
+      if (!(data && run !== data)) setMsg("Couldn't reach the high scores. Check your internet.", 'lbbad');
+      flush();
+    });
+    function handle(j) {
       if (j.ok) {
+        store.set('name', j.name); // eerst: de eigen besten horen bij deze naam
         if (data) {
           tokenP = null; // token is gebruikt
           var ps = posted();
@@ -127,8 +151,10 @@
           data.done = true;
         }
         store.set('name', j.name);
-        store.set('key', key);
+        rememberKey(j.name, key);
         store.set('claimed', true);
+        boardChanged = api.open;
+        $('lbMeBtn').classList.remove('hidden');
         takeBest(j.best);
         showForm(false);
         $('lbWho').textContent = j.name;
@@ -143,18 +169,14 @@
         showForm(true, !!code);
         setMsg('Pick another name: 3–12 letters or numbers, nothing rude.', 'lbbad');
       } else if (j.status === 429) {
-        setMsg('Too many scores at once. Try again later.', 'lbbad');
+        setMsg('Too many tries. Try again later.', 'lbbad');
       } else if (data) {
         tokenP = null;
         setMsg("This run can't be posted. Try the next one!", 'lbbad');
       } else {
         setMsg('Something went wrong. Try again later.', 'lbbad');
       }
-    }).catch(function () {
-      done();
-      if (data && run !== data) { flush(); return; }
-      setMsg("Couldn't reach the high scores. Check your internet.", 'lbbad');
-    });
+    }
   }
   function submitForm() {
     var code = $('lbCodeRow').classList.contains('hidden') ? '' : $('lbCode').value.trim();
@@ -182,7 +204,11 @@
   function flush() { var n = pending; pending = null; if (n) post(n.name, n.code); }
 
   // ---------- lijst ----------
-  var cache = {}, tab = 'day', backTo = [];
+  var cache = {}, tab = 'day', backTo = [], saved = null, boardChanged = false;
+  function snapshot() {
+    return { form: !$('lbForm').classList.contains('hidden'), code: !$('lbCodeRow').classList.contains('hidden'),
+      msg: $('lbMsg').textContent, cls: $('lbMsg').className };
+  }
   function fmtLeft(ms) {
     var h = Math.floor(ms / 3600000), m = Math.floor(ms % 3600000 / 60000);
     if (h >= 48) return Math.round(h / 24) + ' days';
@@ -231,6 +257,8 @@
     backTo = ['title', 'over'].filter(function (id) { return !$(id).classList.contains('hidden'); });
     backTo.forEach(function (id) { $(id).classList.add('hidden'); });
     $('board').classList.remove('hidden');
+    saved = snapshot();
+    boardChanged = false;
     api.open = true;
     placeForm('board');
     showForm(false);
@@ -246,7 +274,13 @@
     var sb = store.get('best', null); // kan net via de naamcode zijn opgehaald
     if (sb && sb.score > 0 && !$('title').classList.contains('hidden')) $('bestTitle').textContent = 'Your best: ' + sb.score + ' points · ' + sb.meters + ' m';
     placeForm('over');
-    showForm(false);
+    if (saved && !boardChanged) {
+      showForm(saved.form, saved.code);
+      $('lbMsg').textContent = saved.msg; $('lbMsg').className = saved.cls;
+    } else {
+      showForm(false); // op het high-scores-scherm net een naam gekozen: melding daarvan laten staan
+    }
+    saved = null;
   }
 
   // ---------- koppeling met het spel ----------
