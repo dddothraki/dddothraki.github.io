@@ -180,7 +180,7 @@ for (let i = 0; i < 12; i++) {
 const models = {};
 const MODEL_FILES = ['farmer', 'wolf', 'ghost', 'scarecrow', 'bale', 'fence', 'vase', 'cheese', 'corn', 'tower'];
 // draaiing (yaw) zodat het model goed staat; voorkant van de generator verschilt per model
-const MODEL_YAW = { farmer: -Math.PI / 2, wolf: Math.PI / 2, ghost: Math.PI, scarecrow: Math.PI, bale: 0, fence: 0, vase: 0, cheese: 0, gold: 0, corn: 0, tower: 0 };
+const MODEL_YAW = { farmer: 0, wolf: Math.PI / 2, ghost: Math.PI, scarecrow: Math.PI, bale: 0, fence: 0, vase: 0, cheese: 0, gold: 0, corn: 0, tower: 0 };
 async function loadModels(onProgress) {
   const get = async url => { const r = await fetch(url); if (!r.ok) throw new Error(url + ' ' + r.status); return r; };
   const info = await (await get('models/models.json')).json();
