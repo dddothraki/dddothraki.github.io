@@ -66,6 +66,28 @@
   #toast { position:absolute; left:50%; bottom:22px; transform:translateX(-50%); background:rgba(0,0,0,.8); padding:8px 14px;
     border-radius:10px; font-size:14px; }
   #shareBox { width:100%; max-width:290px; height:70px; font:inherit; font-size:13px; border-radius:8px; }
+  /* high scores */
+  #lb { width:100%; max-width:290px; display:flex; flex-direction:column; gap:6px; }
+  #lbForm { display:flex; gap:8px; }
+  #lbIn { flex:1; min-width:0; font:inherit; font-size:16px; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.3);
+    background:rgba(0,0,0,.45); color:#fff; -webkit-user-select:text; user-select:text; }
+  #lbPost { padding:10px 16px; background:var(--gold); }
+  #lbPost:disabled { opacity:.6; }
+  .linkbtn { background:none; padding:0; color:var(--gold); font-size:13px; font-weight:700; text-decoration:underline; border-radius:0; }
+  .lbgood { color:var(--green); font-weight:800; }
+  .lbbad { color:#ff8a7a; }
+  #board .tabs { display:flex; gap:6px; }
+  #board .tabs button { font-size:14px; padding:8px 12px; background:rgba(255,255,255,.1); color:#cfd6da; }
+  #board .tabs button.on { background:var(--gold); color:#111; }
+  #lbList { list-style:none; margin:0; padding:0; width:100%; max-width:300px; }
+  #lbList li { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px; font-size:15px; }
+  #lbList li:nth-child(odd) { background:rgba(255,255,255,.05); }
+  #lbList li.me { background:rgba(242,193,78,.2); }
+  #lbList .rk { width:22px; color:var(--muted); font-weight:800; text-align:right; }
+  #lbList li:nth-child(-n+3) .rk { color:var(--gold); }
+  #lbList .nm { flex:1; text-align:left; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #lbList .mt { color:var(--muted); font-size:12px; }
+  #lbList .sc { min-width:48px; text-align:right; font-weight:900; color:var(--gold); }
 </style>
 </head>
 <body>
@@ -90,6 +112,7 @@
     <button id="playBtn" class="big" disabled>Loading…</button>
     <p class="how">Swipe ← → to dodge · Swipe ↑ or tap to jump<br>PC: arrow keys or A / D, W or Space to jump</p>
     <p class="how" id="bestTitle"></p>
+    <button id="lbOpen" class="ghostbtn">🏆 High scores</button>
     <a class="btn roblox" href="https://www.roblox.com/games/77894735497943" target="_blank" rel="noopener">Play the full game on Roblox<small>POLDER ESCAPE · free co-op horror</small></a>
     <a class="small-link" href="../">More games by DDD Games</a>
     <button id="simpleBtn" class="ghostbtn hidden">Slow phone? Try simple mode</button>
@@ -110,8 +133,14 @@
     </div>
     <p id="newBest" class="hidden">NEW BEST!</p>
     <p class="how" id="oBest"></p>
+    <div id="lb" class="hidden">
+      <div id="lbForm" class="hidden"><input id="lbIn" maxlength="12" placeholder="Your name" aria-label="Your name" autocomplete="nickname" enterkeyhint="send" spellcheck="false" autocapitalize="off"><button id="lbPost">Post</button></div>
+      <p id="lbName" class="how hidden">Playing as <b id="lbWho"></b> · <button id="lbChange" class="linkbtn">change</button></p>
+      <p id="lbMsg" class="how"></p>
+    </div>
     <div class="btns">
       <button id="againBtn" class="big">↻ Run again</button>
+      <button id="lbOpen2" class="ghostbtn">🏆 High scores</button>
       <button id="shareBtn" class="ghostbtn">Share my score</button>
       <button id="simpleBtn2" class="ghostbtn hidden">Try simple mode</button>
       <textarea id="shareBox" class="hidden" readonly></textarea>
@@ -120,10 +149,20 @@
     <a class="small-link" href="../">More games by DDD Games</a>
   </div>
 
+  <div id="board" class="screen hidden">
+    <h2>🏆 High scores</h2>
+    <div class="tabs"><button data-p="day" class="on">Today</button><button data-p="week">This week</button><button data-p="all">All time</button></div>
+    <ol id="lbList"></ol>
+    <p id="lbEmpty" class="how hidden"></p>
+    <p id="lbReset" class="how"></p>
+    <button id="lbBack" class="big">Back</button>
+  </div>
+
   <div id="toast" class="hidden"></div>
   </div>
 </div>
 <div id="rotate" class="hidden">📱 Turn your phone upright to play</div>
+<script src="board.js"></script>
 <script>
   // 3D-versie (game3d.js, three.js). Geen WebGL of laadt three.js niet? Dan de platte versie (classic.js).
   window.__dashFallback = function (why) {

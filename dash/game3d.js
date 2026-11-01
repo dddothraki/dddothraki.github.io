@@ -367,6 +367,8 @@ function rippleMesh() {
 let lastSize = '';
 let lowQuality = false;
 function resize() {
+  // niet herschalen terwijl het toetsenbord open is (naam typen voor de high scores)
+  if (document.activeElement && document.activeElement.id === 'lbIn') return;
   const vw = window.innerWidth, vh = window.innerHeight;
   const size = vw + 'x' + vh + 'x' + (window.devicePixelRatio || 1);
   if (size === lastSize) return;
@@ -543,7 +545,7 @@ function jump() {
 }
 let ptr = null;
 wrap.addEventListener('pointerdown', e => {
-  if (e.target.closest('button, a, textarea')) return;
+  if (e.target.closest('button, a, textarea, input')) return;
   ptr = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), done: false };
 });
 wrap.addEventListener('pointermove', e => {
@@ -564,10 +566,11 @@ const endPtr = e => {
 wrap.addEventListener('pointerup', endPtr);
 wrap.addEventListener('pointercancel', endPtr);
 window.addEventListener('keydown', e => {
+  if (window.DashBoard && window.DashBoard.open) return; // scorebord open
   const c = e.code;
   if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(c)) e.preventDefault();
   if (e.repeat) return;
-  if ((c === 'Space' || c === 'Enter') && e.target.closest && e.target.closest('a, button, textarea')) {
+  if ((c === 'Space' || c === 'Enter') && e.target.closest && e.target.closest('a, button, textarea, input')) {
     if (mode === 'play' && !paused) { e.preventDefault(); e.target.blur(); jump(); }
     return;
   }
@@ -588,6 +591,7 @@ function start() {
   Sound.init();
   Sound.bed(true);
   newGame();
+  if (window.DashBoard) window.DashBoard.runStart();
   mode = 'play';
   paused = false;
   show('title', false); show('over', false); show('pause', false); show('hud', true);
@@ -629,6 +633,7 @@ function gameOver() {
   if (isBest) best = { score: s, meters: Math.max(m, best.meters) };
   else if (m > best.meters) best.meters = m;
   store.set('best', best);
+  if (window.DashBoard) window.DashBoard.runEnd({ score: s, meters: m, loot: G.loot, coins: G.coins });
   $('killer').textContent = KILLERS[G.killer] || 'Caught!';
   $('oMeters').textContent = m;
   $('oScore').textContent = s;
@@ -670,7 +675,7 @@ document.addEventListener('visibilitychange', () => {
   else if (mode !== 'play' || !paused) Sound.resume();
 });
 window.addEventListener('blur', () => { if (mode === 'play' && !paused) setPaused(true); });
-wrap.addEventListener('touchend', e => { if (!e.target.closest('a, button, textarea')) e.preventDefault(); }, { passive: false });
+wrap.addEventListener('touchend', e => { if (!e.target.closest('a, button, textarea, input')) e.preventDefault(); }, { passive: false });
 function toTitle() {
   newGame();
   show('title', true);
@@ -1123,7 +1128,8 @@ loadModels(p => { playBtn.textContent = `Loading… ${Math.round(p * 100)}%`; })
 requestAnimationFrame(frame);
 
 // voor testen vanuit de console
-window.__dash = {
+// testhaak alleen lokaal (anders is valsspelen te makkelijk)
+if (/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) window.__dash = {
   get G() { return G; }, get mode() { return mode; }, get perf() { return perf; }, set hold(v) { hold = v; },
   fpsProbe, get lowQuality() { return lowQuality; },
   start, die, move, jump, laneX, renderer, scene, camera,
