@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Free games: Polder Dash, Polder Escape, Roll &amp; Steal an Egg</title>
+<meta name="description" content="Play Polder Dash in your browser, and our Roblox games Polder Escape (co-op horror) and Roll & Steal an Egg on EggMountain. All free.">
+<meta name="theme-color" content="#070b10">
+<meta property="og:title" content="Free games: play Polder Dash now">
+<meta property="og:description" content="A haunted runner in your browser, plus our Roblox games Polder Escape and Roll & Steal an Egg. All free.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://dddothraki.github.io/assets/dash_card.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070b10'/%3E%3Cpath d='M14 50 L32 10 L50 50Z' fill='%23f2c14e' opacity='.35'/%3E%3Ccircle cx='32' cy='44' r='9' fill='%23e2b23a'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #070b10; --panel: #0f161d; --panel2: #141d26; --line: rgba(255,255,255,.08);
+    --ink: #eef1f3; --muted: #9aa6ae; --gold: #f2c14e; --red: #e2483b; --egg: #ffb347; --sky: #6fb7ff;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.5; }
+  img { max-width: 100%; display: block; }
+  a { color: inherit; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+
+  /* nacht met mist en sterren */
+  .sky { position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% 0%, rgba(80,110,140,.18), transparent 70%),
+      radial-gradient(ellipse 60% 40% at 15% 85%, rgba(150,170,190,.06), transparent 70%),
+      radial-gradient(ellipse 60% 40% at 85% 70%, rgba(150,170,190,.05), transparent 70%),
+      var(--bg); }
+
+  header { padding: 18px 0; }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 900; letter-spacing: 1px; text-decoration: none; }
+  .logo svg { width: 34px; height: 34px; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav a { text-decoration: none; color: var(--muted); font-size: 14px; padding: 6px 10px; border-radius: 8px; }
+  nav a:hover { color: var(--ink); background: var(--panel); }
+
+  .intro { padding: 26px 0 8px; }
+  .intro h1 { font-size: clamp(30px, 6vw, 52px); line-height: 1.05; margin: 0 0 10px; font-weight: 900; letter-spacing: -.5px; }
+  .intro h1 span { color: var(--gold); }
+  .intro p { color: var(--muted); font-size: 18px; margin: 0; max-width: 620px; }
+
+  section { padding: 28px 0; }
+  .label { font-size: 12px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+
+  .card { background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+
+  /* Polder Dash */
+  .dash { display: grid; grid-template-columns: 300px 1fr; }
+  .dash .shot { position: relative; background: #05080c; }
+  .dash .shot img { width: 100%; height: 100%; object-fit: cover; object-position: center 70%; max-height: 460px; }
+  .dash .shot .badge { position: absolute; top: 12px; left: 12px; }
+  .dash .body { padding: 28px; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+  .dash h2 { margin: 0; font-size: clamp(38px, 6vw, 60px); line-height: .95; font-weight: 900; }
+  .dash h2 span { color: var(--gold); }
+  .dash p { margin: 0; color: #cfd6da; font-size: 17px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .facts li { font-size: 13px; color: var(--ink); background: rgba(255,255,255,.06); border: 1px solid var(--line); padding: 4px 10px; border-radius: 99px; }
+  .badge { font-size: 11px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; padding: 4px 9px; border-radius: 6px; background: var(--gold); color: #111; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-weight: 900; border-radius: 12px; padding: 13px 22px; font-size: 18px; }
+  .btn.play { background: var(--gold); color: #111; box-shadow: 0 4px 0 #a17b22; align-self: flex-start; font-size: 22px; padding: 15px 34px; }
+  .btn.roblox { background: var(--red); color: #fff; box-shadow: 0 4px 0 #8f2219; }
+  .btn.egg { background: var(--egg); color: #2a1600; box-shadow: 0 4px 0 #b26d10; }
+  .btn:active { transform: translateY(3px); box-shadow: none; }
+  .btn:focus-visible, nav a:focus-visible { outline: 3px solid var(--sky); outline-offset: 3px; }
+
+  /* Roblox-spellen */
+  .games { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .game .pics { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; background: #000; aspect-ratio: 16 / 10; overflow: hidden; }
+  .game .pics img { width: 100%; height: 100%; min-height: 0; object-fit: cover; }
+  .game .pics img:first-child { grid-row: span 2; }
+  .game .body { padding: 20px 22px 24px; display: flex; flex-direction: column; gap: 12px; }
+  .game h3 { margin: 0; font-size: 26px; line-height: 1.1; font-weight: 900; }
+  .game p { margin: 0; color: #cfd6da; }
+  .game .btn { align-self: flex-start; }
+  .tag-horror { color: #ff7a6e; }
+  .tag-egg { color: var(--egg); }
+
+  footer { padding: 30px 0 40px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); margin-top: 20px; }
+  footer p { margin: 4px 0; }
+
+  @media (max-width: 760px) {
+    .dash { grid-template-columns: 1fr; }
+    .dash .shot img { max-height: 230px; object-position: center 92%; }
+    .dash .body { padding: 22px 18px 24px; }
+    .games { grid-template-columns: 1fr; }
+    .btn.play { align-self: stretch; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<div class="sky"></div>
+
+<header>
+  <div class="wrap">
+    <a class="logo" href="./">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#141d26"/><path d="M14 50 L32 10 L50 50Z" fill="#f2c14e" opacity=".35"/><circle cx="32" cy="44" r="9" fill="#e2b23a"/></svg>
+      <span>FREE GAMES</span>
+    </a>
+    <nav aria-label="Games">
+      <a href="#dash">Polder Dash</a>
+      <a href="#polder-escape">Polder Escape</a>
+      <a href="#roll-and-steal">Roll &amp; Steal</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="intro">
+    <h1>Spooky Dutch nights &amp; <span>egg heists.</span></h1>
+    <p>Play Polder Dash right here in your browser, then grab your friends for our Roblox games. Everything is free.</p>
+  </div>
+
+  <section id="dash" aria-labelledby="dash-title">
+    <p class="label">Play now, no download</p>
+    <article class="card dash">
+      <div class="shot">
+        <img src="assets/dash_shot.jpg" alt="Polder Dash: a runner with a flashlight on a dark dike, with a scarecrow, a ghost and a waterwolf" width="540" height="912">
+        <span class="badge">New</span>
+      </div>
+      <div class="body">
+        <h2 id="dash-title">POLDER <span>DASH</span></h2>
+        <p>Run along a haunted dike at night. Jump the fences, stay away from the ditch when the water ripples, and keep your flashlight on the scarecrows: in the dark, they move.</p>
+        <ul class="facts">
+          <li>📱 Phone &amp; PC</li>
+          <li>⏱ 1-minute runs</li>
+          <li>🏆 Beat your best</li>
+        </ul>
+        <a class="btn play" href="dash/">▶ Play Polder Dash</a>
+      </div>
+    </article>
+  </section>
+
+  <section aria-labelledby="roblox-title">
+    <p class="label" id="roblox-title">Our Roblox games</p>
+    <div class="games">
+      <article class="card game" id="polder-escape">
+        <div class="pics">
+          <img src="assets/polder_ghost.jpg" alt="A ghost behind a player in a foggy Dutch graveyard" loading="lazy">
+          <img src="assets/polder_scarecrow.jpg" alt="A scarecrow in a corn field at night" loading="lazy" style="object-position: center 10%">
+          <img src="assets/polder_wolf.jpg" alt="The waterwolf with glowing eyes next to a player" loading="lazy">
+        </div>
+        <div class="body">
+          <h3>Polder Escape</h3>
+          <p class="tag-horror"><strong>Co-op horror · 1–10 players</strong></p>
+          <p>Sneak into a Dutch village in the fog, steal the loot, make quota and get back to the truck before the dike breaks. The White Ladies hunt by sound, even your microphone.</p>
+          <a class="btn roblox" href="https://www.roblox.com/games/77894735497943" target="_blank" rel="noopener">Play on Roblox</a>
+        </div>
+      </article>
+
+      <article class="card game" id="roll-and-steal">
+        <div class="pics">
+          <img src="assets/egg_goose.jpg" alt="A goose pet on EggMountain" loading="lazy" style="object-position: center 75%">
+          <img src="assets/egg_werewolf.jpg" alt="The werewolf guardian on Halloween Mountain" loading="lazy">
+          <img src="assets/egg_divine.jpg" alt="Glowing divine eggs on a nest" loading="lazy">
+        </div>
+        <div class="body">
+          <h3>Roll &amp; Steal an Egg on EggMountain</h3>
+          <p class="tag-egg"><strong>Adventure · pets · trading</strong></p>
+          <p>Climb the mountain, sneak past the guardians and roll the rarest eggs back to your base. Hatch them into pets, trade with friends and try the spooky Halloween Mountain.</p>
+          <a class="btn egg" href="https://www.roblox.com/games/92359938982615" target="_blank" rel="noopener">Play on Roblox</a>
+        </div>
+      </article>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Made with love in the Dutch polder.</p>
+    <p>Roblox is a trademark of Roblox Corporation. These games are made by an independent creator.</p>
+  </div>
+</footer>
+</body>
+</html>
