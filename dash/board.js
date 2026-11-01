@@ -101,6 +101,22 @@
     });
   }
 
+  // speelteller: alleen een willekeurig id per apparaat, verder niets
+  function countPlay() {
+    var id = store.get('id', '');
+    if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{8,32}$/.test(id)) {
+      id = '';
+      var c = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      var r = new Uint8Array(16);
+      try { crypto.getRandomValues(r); } catch (e) { for (var k = 0; k < 16; k++) r[k] = Math.random() * 256; }
+      for (var i = 0; i < 16; i++) id += c[r[i] % c.length];
+      store.set('id', id);
+    }
+    try {
+      fetch(API + '/play', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id, mode: window.__dashClassic ? 'classic' : '3d' }) }).catch(function () {});
+    } catch (e) { /* geen internet */ }
+  }
   function done() { sending = false; $('lbPost').disabled = false; }
   // een nieuwere run wachtte op de vorige verzending
   function flush() { var n = pending; pending = null; if (n && run && !run.done) post(n); }
@@ -169,6 +185,7 @@
     open: false,
     runStart: function () {
       run = null;
+      countPlay();
       pending = null;
       if (!nextTok || Date.now() - nextTok.at > 2.5 * 3600 * 1000) prefetch();
       var mine = nextTok.p;
