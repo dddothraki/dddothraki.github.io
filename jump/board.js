@@ -145,8 +145,14 @@
       me.appendChild(document.createTextNode('You: '));
       var b = document.createElement('b'); b.textContent = name; me.appendChild(b);
       me.appendChild(document.createTextNode(' · name code '));
-      var c = document.createElement('b'); c.className = 'code'; c.textContent = fmtKey(keyFor(name)); me.appendChild(c);
-      $('lbMeHint').textContent = 'Same name and code as in Polder Dash. Write the code down!';
+      // code staat verborgen (geen code op screenshots); tik op "show" om hem te zien
+      var real = fmtKey(keyFor(name));
+      var c = document.createElement('b'); c.className = 'code'; c.textContent = '••••-••••'; me.appendChild(c);
+      me.appendChild(document.createTextNode(' '));
+      var sb = document.createElement('button'); sb.className = 'linkbtn'; sb.textContent = 'show';
+      sb.addEventListener('click', function () { var open = sb.textContent === 'show'; c.textContent = open ? real : '••••-••••'; sb.textContent = open ? 'hide' : 'show'; });
+      me.appendChild(sb);
+      $('lbMeHint').textContent = 'Same name and code as in Polder Dash. Keep it secret, like a password, and write it down.';
     } else {
       $('lbMeHint').textContent = 'Got a name code from Polder Dash or another phone? Use it here.';
     }
