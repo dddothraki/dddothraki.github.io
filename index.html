@@ -84,6 +84,31 @@
   .tag-horror { color: #ff7a6e; }
   .tag-egg { color: var(--egg); }
 
+
+  /* high scores */
+  .scores { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .board { padding: 20px 22px 22px; display: flex; flex-direction: column; gap: 12px; }
+  .board-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .board h3 { margin: 0; font-size: 22px; font-weight: 900; }
+  .board h3 span { color: var(--gold); }
+  .tabs { display: flex; gap: 6px; }
+  .tabs button { font: inherit; font-size: 13px; font-weight: 800; border: 0; cursor: pointer; border-radius: 8px; padding: 6px 10px; background: rgba(255,255,255,.08); color: #cfd6da; }
+  .tabs button.on { background: var(--gold); color: #111; }
+  .tabs button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+  .top { list-style: none; margin: 0; padding: 0; min-height: 190px; }
+  .top li { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; font-size: 16px; }
+  .top li:nth-child(odd) { background: rgba(255,255,255,.04); }
+  .top .rk { width: 26px; text-align: center; font-weight: 900; color: var(--muted); }
+  .top li:nth-child(1) .rk, .top li:nth-child(2) .rk, .top li:nth-child(3) .rk { font-size: 18px; }
+  .top .nm { flex: 1; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .top .mt { color: var(--muted); font-size: 13px; }
+  .top .sc { min-width: 52px; text-align: right; font-weight: 900; color: var(--gold); }
+  .top li.me { background: rgba(242,193,78,.16); }
+  .top .empty { color: var(--muted); justify-content: center; background: none; }
+  .beat { margin: 0; color: #cfd6da; font-size: 15px; min-height: 1.5em; }
+  .beat b { color: var(--gold); }
+  .board .btn { align-self: flex-start; font-size: 17px; padding: 11px 20px; }
+
   footer { padding: 30px 0 40px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); margin-top: 20px; }
   footer p { margin: 4px 0; }
 
@@ -92,6 +117,12 @@
     .dash .shot img { max-height: 230px; object-position: center 92%; }
     .dash .body { padding: 22px 18px 24px; }
     .games { grid-template-columns: 1fr; }
+    .scores { grid-template-columns: 1fr; }
+    .top li { gap: 7px; padding: 7px 6px; font-size: 15px; }
+    .top .mt { font-size: 12px; }
+    .top .sc { min-width: 36px; }
+    .top .rk { width: 22px; }
+    .board .btn { align-self: stretch; }
     .btn.play { align-self: stretch; }
   }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
@@ -109,6 +140,7 @@
     <nav aria-label="Games">
       <a href="#dash">Polder Dash</a>
       <a href="#jump">Ditch Jumper</a>
+      <a href="#scores">High scores</a>
       <a href="#polder-escape">Polder Escape</a>
       <a href="#roll-and-steal">Roll &amp; Steal</a>
     </nav>
@@ -157,6 +189,30 @@
     </article>
   </section>
 
+  <section id="scores" aria-labelledby="scores-title" hidden>
+    <p class="label" id="scores-title">🏆 High scores · can you beat them?</p>
+    <div class="scores">
+      <article class="card board" data-game="dash" data-unit="m" data-href="dash/">
+        <div class="board-head">
+          <h3>POLDER <span>DASH</span></h3>
+          <div class="tabs" role="group" aria-label="Polder Dash period"><button data-p="day">Today</button><button data-p="all" class="on">All time</button></div>
+        </div>
+        <ol class="top"></ol>
+        <p class="beat"></p>
+        <a class="btn play" href="dash/">▶ Beat it</a>
+      </article>
+      <article class="card board" data-game="jump" data-unit="ditches" data-href="jump/">
+        <div class="board-head">
+          <h3>DITCH <span>JUMPER</span></h3>
+          <div class="tabs" role="group" aria-label="Ditch Jumper period"><button data-p="day">Today</button><button data-p="all" class="on">All time</button></div>
+        </div>
+        <ol class="top"></ol>
+        <p class="beat"></p>
+        <a class="btn play" href="jump/">▶ Beat it</a>
+      </article>
+    </div>
+  </section>
+
   <section aria-labelledby="roblox-title">
     <p class="label" id="roblox-title">Our Roblox games</p>
     <div class="games">
@@ -197,5 +253,73 @@
     <p>Roblox is a trademark of Roblox Corporation. DDD Games is an independent creator.</p>
   </div>
 </footer>
+<script>
+  // High scores van beide spellen (zelfde server als in de spellen). Lukt het niet, dan blijft het blok verborgen.
+  (function () {
+    var API = 'https://polder-dash-scores.dddgames.workers.dev';
+    var section = document.getElementById('scores');
+    var medals = ['🥇', '🥈', '🥉'];
+    var shown = 0;
+    var me = '';
+    try { me = String(JSON.parse(localStorage.getItem('polderdash.name')) || '').toLowerCase(); } catch (e) { me = ''; }
+    function get(game, period) {
+      var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      if (ctl) setTimeout(function () { ctl.abort(); }, 8000);
+      return fetch(API + '/top?game=' + game + '&period=' + period, ctl ? { signal: ctl.signal } : {}).then(function (r) { return r.json(); });
+    }
+    function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+    function show(card, period) {
+      var game = card.getAttribute('data-game'), unit = card.getAttribute('data-unit');
+      var list = card.querySelector('.top'), beat = card.querySelector('.beat'), btn = card.querySelector('.btn');
+      var tabs = card.querySelectorAll('.tabs button');
+      for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('on', tabs[i].getAttribute('data-p') === period);
+      return get(game, period).then(function (j) {
+        if (!j || !Array.isArray(j.rows) || (game !== 'dash' && j.game !== game)) throw new Error('no list');
+        list.textContent = '';
+        var rows = j.rows.slice(0, 5);
+        rows.forEach(function (r, k) {
+          var li = el('li', me && String(r.name).toLowerCase() === me ? 'me' : '');
+          li.appendChild(el('span', 'rk', medals[k] || String(k + 1)));
+          var nm = el('span', 'nm', r.name);
+          if (r.owner) { var c = el('span', '', ' 👑'); c.title = 'Maker of the game'; nm.appendChild(c); }
+          li.appendChild(nm);
+          var m = unit === 'm' ? r.meters + ' m' : r.meters + (r.meters === 1 ? ' ditch' : ' ditches');
+          li.appendChild(el('span', 'mt', m));
+          li.appendChild(el('span', 'sc', r.score));
+          list.appendChild(li);
+        });
+        beat.textContent = '';
+        var myRank = -1;
+        rows.forEach(function (r, k) { if (me && String(r.name).toLowerCase() === me) myRank = k; });
+        if (rows.length && myRank === 0) {
+          beat.textContent = "You're #1" + (period === 'day' ? ' today' : '') + '! Defend your spot.';
+          btn.textContent = '▶ Play now';
+        } else if (rows.length) {
+          beat.appendChild(document.createTextNode('Beat '));
+          beat.appendChild(el('b', '', rows[0].name));
+          beat.appendChild(document.createTextNode(' with ' + rows[0].score + ' points' + (period === 'day' ? ' today!' : '!')));
+          btn.textContent = '▶ Beat ' + rows[0].name;
+        } else {
+          list.appendChild(el('li', 'empty', period === 'day' ? 'Nobody played yet today.' : 'No scores yet.'));
+          beat.textContent = period === 'day' ? 'Be the first today!' : 'Be the first!';
+          btn.textContent = '▶ Play now';
+        }
+        if (!shown++) section.hidden = false;
+      });
+    }
+    var cards = document.querySelectorAll('.board');
+    for (var i = 0; i < cards.length; i++) {
+      (function (card) {
+        show(card, 'all').catch(function () { /* geen internet of server: blok blijft verborgen */ });
+        var tabs = card.querySelectorAll('.tabs button');
+        for (var k = 0; k < tabs.length; k++) tabs[k].addEventListener('click', function (e) {
+          show(card, e.currentTarget.getAttribute('data-p')).catch(function () {
+            card.querySelector('.beat').textContent = "Couldn't load the high scores.";
+          });
+        });
+      })(cards[i]);
+    }
+  })();
+</script>
 </body>
 </html>
