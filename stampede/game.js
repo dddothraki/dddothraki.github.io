@@ -630,6 +630,7 @@ function clearThings() { for (const t of things) world.remove(t.obj); things.len
 
 // row generator: always leaves a way through
 let rand = Math.random, nextRow = 0, lastRowEnd = 0;
+let lastReach = [0, 1, 2], lastGapT = 1, lastMinGap = 0, lastJump = false;   // lanes you can be in at the last row, the time to the next one, and if it had a jump
 function pick(w) { let s = 0; for (const k in w) s += w[k]; let r = rand() * s; for (const k in w) { r -= w[k]; if (r <= 0) return k; } return Object.keys(w)[0]; }
 function coinsBetween(from, to, lane, rowLane) {
   const n = Math.min(8, Math.floor((to - from) / 2.4));
@@ -638,35 +639,83 @@ function coinsBetween(from, to, lane, rowLane) {
   if (rowLane === 'fence') addThing({ type: 'coin', d: to + 5.15, lane, y: 2.0 });
   if (rowLane === 'beam') addThing({ type: 'coin', d: to + 5.2, lane, y: 0.3 });
 }
+// After 1500 m the run comes in waves: a rush with lots of fast lane switching, then a calm stretch with only coins.
+// Every rush is a bit harder than the one before (fewer easy rows, more blocked lanes, less room), until 5000 m.
+const HARD_FROM = 1500, WAVE = 520, CALM = 100;
+const hardness = d => Math.max(0, Math.min(1, (d - HARD_FROM) / 3500));
+const calmAt = d => d >= HARD_FROM && (d - HARD_FROM) % WAVE >= WAVE - CALM;
 function spawnRow(d, v) {
-  const w = { one: 3, two: d > 90 ? 3 : 0, ditch: d > 160 ? 1.3 : 0, three: d > 380 ? 1.6 : 0, cart: d > 550 ? 1.3 : 0 };
+  if (calmAt(d)) {
+    // calm stretch: no obstacles, short lines of coins (and sometimes a gem)
+    const stop = HARD_FROM + (Math.floor((d - HARD_FROM) / WAVE) + 1) * WAVE;
+    let l = (rand() * 3) | 0;
+    for (let x = d + 2; x < stop - 24; x += 26) { coinsBetween(x, Math.min(x + 19, stop - 12), l, null); l = l === 1 ? (rand() < 0.5 ? 0 : 2) : 1; }
+    if (rand() < 0.3) addThing({ type: 'gem', d: stop - 8, lane: l, y: 1.1 });
+    lastReach = [0, 1, 2]; lastMinGap = 0; lastJump = false; lastRowEnd = stop;
+    return;
+  }
+  const h = hardness(d);
+  // little time since the last row: the open lane must be next to one you can be in (never two lanes at once)
+  const tight = lastGapT < 0.75;
+  const near = l => !tight || lastReach.some(p => Math.abs(p - l) <= 1);
+  const pickNear = () => { const c = [0, 1, 2].filter(near); return c[(rand() * c.length) | 0]; };
+  // just jumped and little time: no fence or ditch now (you would still be in the air), duck under a beam instead
+  const noFence = lastJump && lastGapT < 0.85;
+  const w = { one: 3 * (1 - 0.8 * h), two: d > 90 ? 3 : 0, ditch: d > 160 && !noFence ? 1.3 * (1 - 0.3 * h) : 0, three: d > 380 ? 1.6 + 1.4 * h : 0,
+    cart: d > 550 ? 1.3 + 0.9 * h : 0, zigzag: d > HARD_FROM ? 0.6 + 2.2 * h : 0 };
   const type = pick(w);
   const lanes = [null, null, null];
-  let gapAfter = 0;
-  const easy = () => (rand() < 0.5 ? 'fence' : 'beam');
-  if (type === 'one') { lanes[(rand() * 3) | 0] = pick({ fence: 1, hay: 1.2, beam: d > 40 ? 1 : 0 }); }
-  else if (type === 'two') { const free = (rand() * 3) | 0; for (let l = 0; l < 3; l++) if (l !== free) lanes[l] = rand() < 0.7 ? 'hay' : easy(); if (rand() < 0.35) lanes[free] = easy(); }
-  else if (type === 'three') { const k = (rand() * 3) | 0; for (let l = 0; l < 3; l++) lanes[l] = l === k ? easy() : (rand() < 0.5 ? 'hay' : easy()); }
+  let gapAfter = 0, rowD = d, cartLane = -1, coinLane = -1;
+  const easy = () => (!noFence && rand() < 0.5 ? 'fence' : 'beam');
+  if (type === 'one') { lanes[(rand() * 3) | 0] = pick({ fence: noFence ? 0 : 1, hay: 1.2, beam: d > 40 ? 1 : 0 }); }
+  else if (type === 'two') { const free = pickNear(); for (let l = 0; l < 3; l++) if (l !== free) lanes[l] = rand() < 0.7 + 0.25 * h ? 'hay' : easy(); if (rand() < 0.35 + 0.4 * h) lanes[free] = easy(); }
+  else if (type === 'three') { const k = pickNear(); for (let l = 0; l < 3; l++) lanes[l] = l === k ? easy() : (rand() < 0.5 + 0.35 * h ? 'hay' : easy()); }
+  else if (type === 'zigzag') {
+    // two rows close together: the open lane moves one lane over, so you switch fast
+    const a = pickNear(), b = a === 1 ? (rand() < 0.5 ? 0 : 2) : 1;
+    let first = null;
+    if (rand() < 0.2 + 0.4 * h) { first = easy(); addThing({ type: first, d, lane: a }); }
+    for (let l = 0; l < 3; l++) if (l !== a) addThing({ type: 'hay', d, lane: l });
+    rowD = d + Math.max(9, speedAt(d) * A.speed * 0.55);
+    for (let l = 0; l < 3; l++) if (l !== b) lanes[l] = 'hay';
+    if (rand() < 0.2 + 0.4 * h) lanes[b] = first === 'fence' ? 'beam' : easy();
+    coinLane = a;
+    if (rand() < 0.75) coinsBetween(lastRowEnd + 5, d - 5, a, first);
+  }
   if (type === 'ditch') { addThing({ type: 'ditch', d }); gapAfter = 2.8; }
   else if (type === 'cart') {
-    const l = (rand() * 3) | 0, t = (d - dist) / v;
-    addThing({ type: 'cart', d: d + 5 * t, lane: l, meet: d });
-    if (d > 900 && rand() < 0.5) lanes[(l + 1 + ((rand() * 2) | 0)) % 3] = 'hay';
+    const open = pickNear(), others = [0, 1, 2].filter(l => l !== open), t = (d - dist) / v;
+    cartLane = others[(rand() * 2) | 0];
+    addThing({ type: 'cart', d: d + 5 * t, lane: cartLane, meet: d });
+    if (d > 900 && rand() < 0.5 + 0.4 * h) lanes[others.find(x => x !== cartLane)] = 'hay';
+    if (h > 0 && rand() < 0.5 * h) lanes[open] = easy();
   }
-  for (let l = 0; l < 3; l++) if (lanes[l]) addThing({ type: lanes[l], d, lane: l });
-  // coins in a lane you can get through
-  const ok = [0, 1, 2].filter(l => lanes[l] !== 'hay' && !(type === 'cart'));
-  if (ok.length && rand() < 0.75) { const l = ok[(rand() * ok.length) | 0]; coinsBetween(lastRowEnd + 5, d - 5, l, lanes[l]); }
-  if (rand() < 0.05 + Math.min(0.05, d / 20000)) { const l = ok.length ? ok[(rand() * ok.length) | 0] : 1; addThing({ type: 'gem', d: d - 8, lane: l, y: 1.1 }); }
-  lastRowEnd = d + Math.max(gapAfter, 1.5);
+  for (let l = 0; l < 3; l++) if (lanes[l]) addThing({ type: lanes[l], d: rowD, lane: l });
+  // lanes you can be in at this row: open, and (with little time) next to where you could be before
+  const open = [0, 1, 2].filter(l => lanes[l] !== 'hay' && l !== cartLane);
+  const reach = type === 'zigzag' ? open : open.filter(near);
+  // coins in a lane you can get through (not on cart rows: the cart drives into them)
+  const ok = coinLane >= 0 ? [coinLane] : reach.length ? reach : open;
+  if (type !== 'zigzag' && type !== 'cart' && ok.length && rand() < 0.75) { const l = ok[(rand() * ok.length) | 0]; coinsBetween(lastRowEnd + 5, d - 5, l, lanes[l]); }
+  if (rand() < 0.05 + Math.min(0.05, d / 20000)) { const l = ok[(rand() * ok.length) | 0]; addThing({ type: 'gem', d: d - 8, lane: l, y: 1.1 }); }
+  lastReach = reach.length ? reach : open;
+  lastMinGap = type === 'ditch' ? 0.85 : 0;   // time to land after a ditch before the next jump
+  lastJump = type === 'ditch' || lanes.includes('fence');
+  lastRowEnd = rowD + Math.max(gapAfter, 1.5);
+}
+// seconds between rows: less room further on
+function rowGap(d) {
+  const h = hardness(d);
+  return Math.max(0.78 - 0.18 * h - Math.min(0.05, Math.max(0, d - 5000) / 40000), 1.45 - d / 2600) + rand() * (0.55 - 0.2 * h);
+}
+function placeRow(v) {
+  spawnRow(nextRow, v);
+  const vAt = speedAt(nextRow) * A.speed;
+  nextRow = lastRowEnd + Math.max(10, vAt * Math.max(rowGap(nextRow), lastMinGap));
+  lastGapT = (nextRow - lastRowEnd) / vAt;
 }
 function genAhead(v) {
-  while (nextRow < dist + AHEAD) {
-    spawnRow(nextRow, v);
-    const gapT = Math.max(0.78, 1.45 - nextRow / 2600) + rand() * 0.55;
-    const vAt = speedAt(nextRow) * A.speed;
-    nextRow = lastRowEnd + Math.max(10, vAt * gapT);
-  }
+  while (nextRow < dist + AHEAD) placeRow(v);
 }
 
 // ---------- game state ----------
@@ -737,7 +786,7 @@ function startRun() {
   rand = rng((Date.now() ^ (Math.random() * 1e9)) >>> 0);
   dist = 0; v = speedAt(0) * A.speed; lane = 1; px = 0; py = 0; vy = 0; slide = 0; coins = 0; gems = 0; dead = null; deadT = 0; t = 0;
   charge = 0; sprint = 0; milestone = 500; queuedJump = 0; shake = 0; landSafe = 0;
-  nextRow = 34; lastRowEnd = 20;
+  nextRow = 34; lastRowEnd = 20; lastReach = [0, 1, 2]; lastGapT = 1; lastMinGap = 0; lastJump = false;
   setAnimal(animalKey);
   animal.g.position.set(0, 0, 0); animal.g.rotation.set(0, 0, 0); animal.body.position.set(0, 0, 0); animal.body.rotation.set(0, 0, 0); animal.body.scale.set(1, 1, 1);
   updateScenery(0); genAhead(v);
@@ -788,7 +837,7 @@ function update(dt) {
   if (sprint > 0) { sprint -= dt; if (sprint <= 0) { sprint = 0; if (A.ability === 'fly') landSafe = 0.7; } }
   if (landSafe > 0) landSafe -= dt;
   else if (P && charge < 1) { charge = Math.min(1, charge + dt / P.charge); if (charge >= 1) sound('ready'); }
-  if (Math.floor(dist) >= milestone) { banner(milestone + ' m!', 1100); sound('mile'); milestone += 500; }
+  if (Math.floor(dist) >= milestone) { banner(milestone + ' m!' + (milestone === HARD_FROM ? ' It gets harder!' : milestone > HARD_FROM && milestone <= 5000 && (milestone - HARD_FROM) % 1000 === 0 ? ' Even harder!' : ''), 1300); sound('mile'); milestone += 500; }
   // hits and pickups
   for (let i = things.length - 1; i >= 0; i--) {
     const o = things[i];
@@ -1234,16 +1283,52 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
     step(n, dt) { for (let i = 0; i < (n || 1); i++) { if (st.mode === 'run') update(dt || STEP); draw(dt || STEP); } },
     get state() { return { mode: st.mode, dist, v, lane, px, py, slide, coins, gems, dead, charge, sprint, things: things.length }; },
     things: () => things.filter(o => !o.gone).map(o => ({ type: o.type, d: o.d, len: o.len, lane: o.lane, y: o.y })),
-    // test: generate rows up to distance `to` and report rows with no way through
-    genCheck(to) {
-      const bad = []; let rows = 0;
-      while (nextRow < to) { const before = things.length; const d = nextRow; spawnRow(nextRow, speedAt(nextRow)); rows++;
-        const row = things.slice(before).filter(o => o.type === 'hay' || o.type === 'cart');
-        const blocked = new Set(row.map(o => o.lane));
-        if (blocked.size >= 3) bad.push({ d, row: row.map(o => o.type + o.lane) });
-        for (const o of things.slice(before)) world.remove(o.obj); things.length = before;
-        nextRow = lastRowEnd + Math.max(10, speedAt(nextRow) * 1.2); }
-      return { rows, bad: bad.slice(0, 10), nBad: bad.length };
+    // test: generate rows up to distance `to` (seed fixes the random rows) and check you can always get through
+    genCheck(to, seed) {
+      const keep = { nextRow, lastRowEnd, lastReach, lastGapT, lastMinGap, lastJump, rand };
+      if (seed) rand = rng(seed);
+      nextRow = 34; lastRowEnd = 20; lastReach = [0, 1, 2]; lastGapT = 1; lastMinGap = 0; lastJump = false;
+      const rows = [];
+      while (nextRow < to) {
+        const before = things.length;
+        placeRow(speedAt(nextRow) * A.speed);
+        const add = things.slice(before);
+        const byD = {};
+        for (const o of add) {
+          if (o.type === 'coin' || o.type === 'gem') continue;
+          const d = o.type === 'cart' ? o.meet : o.d;
+          (byD[d.toFixed(2)] = byD[d.toFixed(2)] || []).push(o);
+        }
+        for (const k of Object.keys(byD).sort((p, q) => p - q)) {
+          const os = byD[k], d = +k, lanes = ['free', 'free', 'free'];
+          let s = d, e = d;
+          for (const o of os) {
+            if (o.type === 'ditch') { lanes.fill('jump'); s = d + 0.35; e = d + o.len - 0.35; }
+            else { lanes[o.lane] = o.type === 'hay' || o.type === 'cart' ? 'block' : o.type === 'fence' ? 'jump' : 'duck'; s = Math.min(s, d - 0.9); e = Math.max(e, d + o.len + 0.7); }
+          }
+          rows.push({ d, s, e, lanes });
+        }
+        for (const o of add) world.remove(o.obj);
+        things.length = before;
+      }
+      ({ nextRow, lastRowEnd, lastReach, lastGapT, lastMinGap, lastJump, rand } = keep);
+      // which lanes can you be in at each row?
+      let S = [0, 1, 2], bad = [], minAct = 9, minFree = 9, easyRows = 0, jj = 0, prev = null;
+      for (const r of rows) {
+        const vv = speedAt(r.d) * A.speed;
+        const free = prev ? (r.s - prev.e) / vv : 9;
+        const open = [0, 1, 2].filter(l => r.lanes[l] !== 'block');
+        const nS = open.filter(l => S.some(p => (2.3 * Math.abs(l - p)) / A.laneSpeed + 0.08 * Math.abs(l - p) <= free));
+        if (!nS.length) bad.push({ d: Math.round(r.d), lanes: r.lanes.join(','), from: S.join(','), free: +free.toFixed(2) });
+        S = nS.length ? nS : open;
+        if (prev && r.lanes.some(x => x === 'jump' || x === 'duck') && prev.lanes.some(x => x === 'jump' || x === 'duck')) minAct = Math.min(minAct, (r.s - prev.s) / vv);
+        if (prev) minFree = Math.min(minFree, free);
+        // a jump you can't ride around, soon after another jump
+        if (prev && prev.lanes.includes('jump') && r.lanes.includes('jump') && !r.lanes.some(x => x === 'free' || x === 'duck') && (r.s - prev.s) / vv < 0.85) jj++;
+        if (r.d > HARD_FROM && r.lanes.filter(x => x === 'free').length >= 2) easyRows++;
+        prev = r;
+      }
+      return { rows: rows.length, hardRows: rows.filter(r => r.d > HARD_FROM).length, easyRows, jj, nBad: bad.length, bad: bad.slice(0, 8), minAct: +minAct.toFixed(3), minFree: +minFree.toFixed(3), list: rows };
     },
     jumpTo(d) { dist = d; updateScenery(dist); },
     animal: () => animal,
