@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Stampede (test version)</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#070b10">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070b10'/%3E%3Cpath d='M14 46 L24 24 L40 22 L50 30 L44 46' stroke='%23f2c14e' stroke-width='6' fill='none' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root { --bg:#070b10; --ink:#e9ecef; --muted:#9aa6ae; --gold:#f2c14e; --green:#57c26a; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); overflow:hidden; touch-action:none;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-user-select:none; user-select:none; overscroll-behavior:none; }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  .screen { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:safe center; gap:14px;
+    padding:24px 18px; text-align:center; overflow-y:auto; background:linear-gradient(180deg, rgba(4,7,11,.35), rgba(4,7,11,.82)); }
+  .hidden { display:none !important; }
+  h1 { margin:0; font-size:clamp(46px, 13vw, 76px); line-height:.9; letter-spacing:2px; font-weight:900; color:#f4f1e8;
+    text-shadow:0 0 24px rgba(242,193,78,.35), 0 4px 0 #000; }
+  h1 span { color:var(--gold); }
+  h2 { margin:0; font-size:26px; font-weight:900; }
+  p { margin:0; }
+  .tag { color:#cfd6da; font-size:16px; }
+  .test { color:#ffb4a8; font-size:12px; letter-spacing:1px; text-transform:uppercase; font-weight:800; }
+  .how { color:var(--muted); font-size:13px; line-height:1.55; max-width:340px; }
+  .how b { color:#cfd6da; }
+  button { font:inherit; border:0; cursor:pointer; border-radius:12px; padding:12px 20px; font-weight:800; font-size:17px; color:#111; background:#e9ecef; }
+  .big { font-size:22px; padding:15px 42px; background:var(--gold); box-shadow:0 4px 0 #a17b22; }
+  .big:active { transform:translateY(3px); box-shadow:0 1px 0 #a17b22; }
+  .ghost { background:transparent; color:#cfd6da; border:1px solid rgba(255,255,255,.25); font-size:15px; padding:9px 16px; }
+  #wallet { font-weight:900; font-size:18px; color:#ffe58a; letter-spacing:.5px; white-space:pre; }
+  #pick { display:flex; gap:8px; max-width:100%; overflow-x:auto; padding:4px 2px 8px; scrollbar-width:thin; }
+  .animal { flex:0 0 auto; width:92px; padding:8px 4px; border-radius:14px; background:rgba(19,32,42,.85); color:#e9ecef; border:2px solid rgba(255,255,255,.12);
+    display:flex; flex-direction:column; gap:2px; align-items:center; box-shadow:0 3px 0 #000; font-size:14px; }
+  .animal .em { font-size:30px; line-height:1.1; }
+  .animal b { font-size:14px; }
+  .animal small { font-size:11px; color:var(--muted); font-weight:700; }
+  .animal.locked .em { filter:grayscale(1) brightness(.7); }
+  .animal.on { border-color:var(--gold); background:rgba(31,44,34,.92); }
+  #info { color:#cfd6da; font-size:14px; min-height:19px; max-width:340px; }
+  #styles { display:flex; gap:6px; max-width:100%; overflow-x:auto; padding:2px 2px 6px; scrollbar-width:thin; }
+  .style { flex:0 0 auto; white-space:nowrap; }
+  .style { display:flex; align-items:center; gap:6px; padding:6px 10px 6px 6px; font-size:13px; border-radius:20px; background:rgba(19,32,42,.85); color:#e9ecef;
+    border:2px solid rgba(255,255,255,.12); font-weight:700; }
+  .style i { width:18px; height:18px; border-radius:50%; display:block; border:2px solid rgba(255,255,255,.5); }
+  .style.on { border-color:var(--gold); }
+  .style small { color:#9fd8ff; font-weight:800; }
+  #menu { justify-content:space-between; gap:0; padding-top:calc(16px + env(safe-area-inset-top)); padding-bottom:calc(14px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg, rgba(4,7,11,.75), rgba(4,7,11,.15) 30%, rgba(4,7,11,0) 45%, rgba(4,7,11,.55) 62%, rgba(4,7,11,.9)); }
+  .mtop, .mbot { display:flex; flex-direction:column; align-items:center; gap:10px; width:100%; }
+  .mgap { flex:1 0 150px; }
+  #menu h1 { font-size:clamp(40px, 11vw, 70px); }
+  @media (pointer:coarse) { .keys { display:none; } }
+  @media (max-height:700px) { #menu .how:not(#menuStats) { display:none; } .mgap { flex-basis:110px; } }
+  .big:disabled { background:#59606a; box-shadow:0 4px 0 #2a2e33; color:#d0d4d8; cursor:default; }
+  .stats { display:flex; gap:28px; }
+  .stats b { display:block; font-size:42px; line-height:1; color:var(--gold); }
+  .stats span { font-size:12px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); }
+  #newBest { color:var(--green); font-weight:900; letter-spacing:2px; }
+  #hud { position:fixed; left:0; right:0; top:0; display:flex; justify-content:space-between; align-items:flex-start;
+    padding:calc(10px + env(safe-area-inset-top)) 12px 0; pointer-events:none; }
+  #hud .num { font-weight:900; font-size:28px; color:#fff; text-shadow:0 2px 0 #000, 0 0 8px rgba(0,0,0,.5); }
+  #hud .num small { font-size:14px; }
+  #hud .sub { font-size:13px; font-weight:800; color:#ffe58a; text-shadow:0 1px 0 #000, 0 0 6px rgba(0,0,0,.6); }
+  #hud .right { display:flex; gap:6px; pointer-events:auto; }
+  .icon { width:40px; height:40px; padding:0; border-radius:10px; background:rgba(0,0,0,.45); color:#fff; font-size:18px; border:1px solid rgba(255,255,255,.15); }
+  #ability { position:fixed; right:16px; bottom:calc(22px + env(safe-area-inset-bottom)); width:82px; height:82px; border-radius:50%;
+    font-size:13px; font-weight:900; color:#111; background:conic-gradient(var(--gold) var(--p, 0%), rgba(255,255,255,.25) 0); box-shadow:0 0 0 4px rgba(0,0,0,.35); }
+  #ability.ready { animation:pulse 1s infinite; }
+  #ability span { display:block; font-size:26px; line-height:1; }
+  @keyframes pulse { 50% { box-shadow:0 0 0 4px rgba(0,0,0,.35), 0 0 22px 6px rgba(242,193,78,.7); } }
+  #banner { position:fixed; left:0; right:0; top:28%; text-align:center; font-size:30px; font-weight:900; color:#fff;
+    text-shadow:0 3px 0 #000, 0 0 14px rgba(0,0,0,.6); pointer-events:none; transition:opacity .4s; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud" class="hidden">
+  <div><div class="num" id="dist">0<small> m</small></div><div class="sub" id="coins">🪙 0</div></div>
+  <div class="right"><button class="icon" tabindex="-1" id="muteBtn" aria-label="Sound">🔊</button><button class="icon" tabindex="-1" id="pauseBtn" aria-label="Pause">⏸</button></div>
+</div>
+<button id="ability" tabindex="-1" class="hidden" aria-label="Sprint"><span>⚡</span>SPRINT</button>
+<div id="banner"></div>
+
+<div id="menu" class="screen">
+  <div class="mtop">
+    <p class="test">Test version</p>
+    <h1>STAMP<span>EDE</span></h1>
+    <p class="tag">Ride wild animals. Go as far as you can.</p>
+    <p id="wallet"></p>
+  </div>
+  <div class="mgap"></div>
+  <div class="mbot">
+    <div id="pick"></div>
+    <p id="info"></p>
+    <div id="styles"></div>
+    <button class="big" id="playBtn">RIDE</button>
+    <p class="how"><b>Swipe</b> left/right to switch lanes, <b>up</b> to jump, <b>down</b> to duck. Tap also jumps.<span class="keys"><br>
+      Keyboard: <b>arrows</b> or <b>WASD</b>, <b>Space</b> jump, <b>Shift</b> power.</span></p>
+    <p class="how" id="menuStats"></p>
+  </div>
+</div>
+
+<div id="paused" class="screen hidden">
+  <h2>Paused</h2>
+  <button class="big" id="resumeBtn">GO ON</button>
+  <button class="ghost" id="quitBtn">Menu</button>
+</div>
+
+<div id="over" class="screen hidden">
+  <h2 id="overTitle">Ouch!</h2>
+  <div class="stats"><div><b id="oDist">0</b><span>meters</span></div><div><b id="oCoins">0</b><span>coins</span></div></div>
+  <p id="newBest" class="hidden">NEW BEST!</p>
+  <p class="how" id="oInfo"></p>
+  <button class="big" id="againBtn">AGAIN</button>
+  <button class="ghost" id="menuBtn">Pick animal</button>
+</div>
+
+<script type="module" src="game.js?v=22"></script>
+</body>
+</html>
