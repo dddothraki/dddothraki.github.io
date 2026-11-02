@@ -22,11 +22,18 @@ const ANIMALS = {
     model: 'Wolf', scale: 0.7, seat: 0.12, seatZ: -0.1, spread: 0.6, stride: 3.2, info: 'Very fast. Pulls coins to you.' },
   bull: { name: 'Bull', em: '🐂', price: 2500, speed: 1.0, jump: 8.4, laneSpeed: 12.5, ability: 'charge',
     model: 'Bull', scale: 0.42, seat: 0.5, seatZ: -0.25, spread: 0.85, stride: 3.6, info: 'Runs through fences. 💥 Charge smashes everything.' },
+  // parts animals: models from Roll & Steal an Egg (head, wings, tail, legs as separate pieces, moved in code).
+  // The model comes from the style. height: how tall the model is made (m).
+  eagle: { name: 'Eagle', em: '🦅', price: 3000, speed: 1.12, jump: 9.4, laneSpeed: 17, ability: 'glide', parts: true,
+    height: 2.6, hover: 0.5, flap: 2.4, seat: 0.0, seatZ: 0.0, spread: 0.8, tilt: 0.95, lift: 0.7, seatAt: 'back', wingOpen: 1.25, headUp: 0, info: 'Always flies. Jumps glide far.' },
+  dragon: { name: 'Dragon', em: '🐉', price: 6000, speed: 1.12, jump: 9.6, laneSpeed: 16, ability: 'fly', parts: true, legs: true,
+    height: 2.5, flap: 1.1, stride: 3.6, seat: 0.02, seatZ: 0.0, spread: 0.85, wingOpen: 0.7, info: 'Runs and flies. 🔥 Fly high over everything.' },
 };
 // button powers: how long they last, how long they take to fill up, extra speed
 const POWERS = {
   sprint: { time: 3, charge: 12, speed: 1.5, icon: '⚡', label: 'SPRINT' },
   charge: { time: 3.5, charge: 10, speed: 1.25, icon: '💥', label: 'CHARGE' },
+  fly: { time: 4, charge: 14, speed: 1.15, icon: '🔥', label: 'FLY', height: 3.4 },
 };
 // styles: looks only. gems = price in 💎 (0 = free). colors by material name; glow = emissive color
 const STYLES = {
@@ -59,6 +66,20 @@ const STYLES = {
     { key: 'rage', name: 'Red Rage', gems: 3, sw: '#8a1a14', colors: { Main: 0x7a1510, Main_Light: 0xa83020, Horns: 0xf4ecd8, Eye_Black: 0xff3010, Eye_White: 0xff3010 }, glow: { Eye_Black: 0xff2000, Eye_White: 0xff2000 } },
     { key: 'ice', name: 'Ice', gems: 5, sw: '#9fd8ff', colors: { Main: 0x9cc8e6, Main_Light: 0xe8f6ff, Horns: 0xffffff, Hooves: 0x5a7a9a }, glow: { Main: 0x0a2a40, Horns: 0x4080b0 } },
     { key: 'golden', name: 'Golden', gems: 8, sw: '#e3ad3c', colors: { Main: 0xd89a2c, Main_Light: 0xf6cf6a, Horns: 0xfff6dc, Hooves: 0x6a4a1a }, glow: { Main: 0x3a2200, Horns: 0x5a4a2a } },
+  ],
+  eagle: [
+    { key: 'beach', name: 'Beach Eagle', gems: 0, sw: '#e9c27a', model: 'eagle_beach' },
+    { key: 'autumn', name: 'Autumn Eagle', gems: 3, sw: '#c8642a', model: 'eagle_autumn' },
+    { key: 'polar', name: 'Polar Eagle', gems: 5, sw: '#dff2ff', model: 'eagle_polar', trail: 0x9fdcff, glowFx: true },
+    { key: 'meteor', name: 'Meteor Eagle', gems: 7, sw: '#5a3a9a', model: 'eagle_meteor', trail: 0xff8a3a, glowFx: true },
+    { key: 'spell', name: 'Spell Eagle', gems: 9, sw: '#b46cff', model: 'eagle_spell', trail: 0xd6a0ff, glowFx: true },
+  ],
+  dragon: [
+    { key: 'dusk', name: 'Dusk Dragon', gems: 0, sw: '#8a4a7a', model: 'dragon_dusk' },
+    { key: 'glacier', name: 'Glacier Dragon', gems: 5, sw: '#bfe4ff', model: 'dragon_glacier', rig: { tilt: 0.85, lift: 0.75, hover: 0.45, seatAt: 'back', wingOpen: 1.0, legs: false, flap: 1.6 }, trail: 0x9fdcff, glowFx: true },
+    { key: 'gold', name: 'Golden Sun Dragon', gems: 7, sw: '#f2c14e', model: 'dragon_gold', rig: { tilt: 0.85, lift: 0.75, hover: 0.45, seatAt: 'back', wingOpen: 1.0, legs: false, flap: 1.6 }, trail: 0xffd34d, glowFx: true },
+    { key: 'galaxy', name: 'Galaxy Dragon', gems: 9, sw: '#4b3aa8', model: 'dragon_galaxy', rig: { headUp: 0.25, tilt: 0.6, lift: 0.75, hover: 0.45, seatAt: 'back', wingOpen: 1.0, legs: false, flap: 1.6 }, trail: 0xb08cff, glowFx: true },
+    { key: 'dream', name: 'Dream Dragon', gems: 10, sw: '#f0a8e0', model: 'dragon_dream', rig: { headUp: 0.25, tilt: 0.6, lift: 0.75, hover: 0.45, seatAt: 'back', wingOpen: 1.0, legs: false, flap: 1.6 }, trail: 0xffc0f0, glowFx: true },
   ],
 };
 
@@ -284,22 +305,128 @@ function loadModel(name, done) {
   loader.load('models/' + name + '.glb', gltf => {
     gltf.scene.traverse(o => {
       if (!o.isMesh) return;
-      const base = o.material, key = o.name === 'Stag_Horns' ? 'Horns' : base.name;
-      o.material = new THREE.MeshLambertMaterial({ color: base.color.clone(), name: key });
+      const base = o.material, key = o.name === 'Stag_Horns' ? 'Horns' : base.map ? 'Skin' : base.name;
+      o.material = new THREE.MeshLambertMaterial({ color: base.color.clone(), name: key, map: base.map || null, side: base.side });
       o.userData.baseColor = base.color.clone(); o.userData.key = key;
       o.castShadow = true; o.frustumCulled = false;
     });
     const mixer = new THREE.AnimationMixer(gltf.scene), acts = {};
     for (const clip of gltf.animations) { const a = mixer.clipAction(clip); a.play(); a.timeScale = 0; a.setEffectiveWeight(0); acts[clip.name] = a; }
-    m.gltf = gltf; m.mixer = mixer; m.acts = acts; m.seat = gltf.scene.getObjectByName('Torso2');
+    const cfg = Object.values(ANIMALS).find(x => x.model === name) || {};
+    m.gltf = gltf; m.mixer = mixer; m.acts = acts; m.seat = gltf.scene.getObjectByName(cfg.seatBone || 'Torso2');
+    if (!gltf.animations.length) m.rig = rigParts(gltf.scene);
     m.state = 'ready'; m.wait.forEach(f => f()); m.wait = [];
   }, undefined, () => { m.state = 'failed'; m.wait.forEach(f => f()); m.wait = []; });
+}
+// a recolored copy of a painted skin: every pixel gets the style's hue, with its saturation and lightness scaled
+const recolored = new Map();
+function recolorTex(base, rc, id) {
+  if (recolored.has(id)) return recolored.get(id);
+  const img = base.image, w = img.width, h = img.height;
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const g = cv.getContext('2d'); g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, w, h), p = d.data, col = new THREE.Color(), hsl = {};
+  for (let i = 0; i < p.length; i += 4) {
+    col.setRGB(p[i] / 255, p[i + 1] / 255, p[i + 2] / 255).getHSL(hsl);
+    if (hsl.s < 0.12) continue;   // keep greys, whites and blacks (eyes, teeth, claws)
+    col.setHSL(rc.hue / 360, Math.min(1, hsl.s * rc.sat), Math.min(0.95, hsl.l * rc.light));
+    p[i] = col.r * 255; p[i + 1] = col.g * 255; p[i + 2] = col.b * 255;
+  }
+  g.putImageData(d, 0, 0);
+  const t = new THREE.CanvasTexture(cv);
+  t.flipY = base.flipY; t.colorSpace = base.colorSpace; t.magFilter = base.magFilter; t.minFilter = base.minFilter;
+  t.wrapS = base.wrapS; t.wrapT = base.wrapT; t.generateMipmaps = base.generateMipmaps;
+  recolored.set(id, t);
+  return t;
+}
+// parts models: hang every piece on a hinge (wing at the shoulder, leg at the hip, head at the neck),
+// so it can turn around that point. Also stand the model on y = 0 and find the seat on the back.
+function rigParts(root) {
+  root.updateMatrixWorld(true);
+  const box = o => new THREE.Box3().setFromObject(o), all = box(root);
+  const body = root.getObjectByName('body');
+  const bb = body ? box(body) : all, bc = bb.getCenter(new THREE.Vector3());
+  const rig = { wings: [], legs: [], head: null, tail: null };
+  const hinge = (o, at) => {
+    const p = o.parent, g = new THREE.Group(); g.position.copy(p.worldToLocal(at.clone()));
+    p.add(g); g.attach(o); return g;
+  };
+  for (const o of [...root.getObjectsByProperty('isMesh', true)]) {
+    const n = o.name, b = box(o), c = b.getCenter(new THREE.Vector3());
+    if (n.includes('wing')) {
+      const inner = Math.abs(b.min.x - bc.x) < Math.abs(b.max.x - bc.x) ? b.min.x : b.max.x;
+      rig.wings.push({ g: hinge(o, new THREE.Vector3(inner, c.y, c.z)), side: Math.sign(c.x - inner) || 1 });
+    } else if (n.includes('leg')) {
+      rig.legs.push({ g: hinge(o, new THREE.Vector3(c.x, b.max.y - (b.max.y - b.min.y) * 0.1, c.z)), front: n.includes('front'), left: n.includes('left') });
+    } else if (n === 'head' || n === 'tail') {
+      rig[n] = hinge(o, b.clampPoint(bc, new THREE.Vector3()));
+    }
+  }
+  rig.size = all.getSize(new THREE.Vector3()); rig.minY = all.min.y;
+  // the seat is where a line onto the body really hits it (not the top of the box, which has spikes)
+  const ray = new THREE.Raycaster(), hitAt = (from, dir, fallback) => {
+    ray.set(from, dir); const h = body ? ray.intersectObject(body, false) : [];
+    return h.length ? h[0].point : fallback;
+  };
+  const top = [];
+  for (const dz of [-0.15, 0, 0.15]) top.push(hitAt(new THREE.Vector3(bc.x, bb.max.y + 1, bc.z + dz * (bb.max.z - bb.min.z)), new THREE.Vector3(0, -1, 0), new THREE.Vector3(bc.x, bb.max.y, bc.z)));
+  rig.seatTop = top.sort((p, q) => p.y - q.y)[0];   // lowest of three: between the spikes
+  rig.seatBack = hitAt(new THREE.Vector3(bc.x, bc.y + (bb.max.y - bc.y) * 0.25, bb.max.z + 1), new THREE.Vector3(0, 0, -1), new THREE.Vector3(bc.x, bc.y, bb.max.z));
+  return rig;
+}
+function makePartsAnimal(key, style) {
+  const a = Object.assign({}, ANIMALS[key], style.rig || {}), m = models[style.model], rig = m.rig;   // a style can change how it moves
+  const g = new THREE.Group(), body = group(0, 0, 0, g);
+  const inner = m.gltf.scene, s = a.height / rig.size.y;
+  inner.scale.setScalar(s); inner.rotation.set(0, 0, 0); inner.position.set(0, -rig.minY * s, 0);
+  // birds stand upright as pets: tip them forward so they fly flat, back up
+  const tilt = group(0, a.lift || 0, 0, body); tilt.rotation.x = -(a.tilt || 0); tilt.add(inner);
+  // a marker on the back: the rider follows it
+  if (!rig.seatMark) { rig.seatMark = new THREE.Object3D(); inner.add(rig.seatMark); }
+  rig.seatMark.position.copy(a.seatAt === 'back' ? rig.seatBack : rig.seatTop);
+  return { g, body, neck: null, head: null, tail: null, legs: [], kind: 'parts', model: m, inner, rig, cycle: 0, spread: a.spread, cfg: a };
+}
+// wings beat, head nods, tail sways, legs run
+function animateParts(a, dt) {
+  const cfg = a.cfg, r = a.rig, air = py > 0.001, flyHigh = A.ability === 'fly' && sprint > 0;
+  const running = !dead || deadT < 0.15;
+  if (running) a.cycle += dt * Math.max(v, st.mode === 'run' ? 0 : 7) / (cfg.stride || 3.4);
+  a.flapT = (a.flapT || 0) + dt * (running ? 1 : 0.2);
+  const beat = cfg.flap * (flyHigh ? 2.2 : air ? 1.6 : 1) * Math.PI * 2;
+  const glide = A.ability === 'glide' && air && vy < 0;
+  const wa = cfg.legs && !air && !flyHigh ? 0.18 + Math.sin(a.flapT * beat) * 0.12 : glide ? 0.1 + Math.sin(a.flapT * beat * 0.3) * 0.05 : Math.sin(a.flapT * beat) * 0.55;
+  // pet wings point up: wingOpen turns them out to the side first, then they beat around that
+  const open = (cfg.wingOpen || 0) + (flyHigh ? 0.35 : 0);
+  for (const w of r.wings) { w.g.rotation.z = w.side * (wa - open); w.g.rotation.y = w.side * Math.cos(a.flapT * beat) * 0.12; }
+  // tipped-over flyers lift their head back up so they look ahead (headUp: part of the tilt)
+  const headUp = (cfg.tilt || 0) * (cfg.headUp !== undefined ? cfg.headUp : 0.8);
+  if (r.head) { r.head.rotation.x = headUp + Math.sin(a.flapT * beat * 0.5) * 0.06 + (slide > 0 ? 0.25 : 0); r.head.rotation.y = Math.sin(a.flapT * 1.3) * 0.08; }
+  if (r.tail) r.tail.rotation.y = Math.sin(a.flapT * 2.1) * 0.25;
+  const ph = a.cycle * Math.PI * 2;
+  for (const L of r.legs) {
+    if (air || flyHigh) { L.g.rotation.x = L.front ? -0.5 : 0.6; continue; }
+    const o = (L.front ? 0 : Math.PI) + (L.left ? 0 : Math.PI * 0.5);
+    L.g.rotation.x = Math.sin(ph + o) * 0.65;
+  }
+  // flying bodies bob with the beat
+  a.inner.position.y = -r.minY * a.inner.scale.y + (!cfg.legs || air || flyHigh ? Math.sin(a.flapT * beat + 1) * 0.06 : 0);
+  // rider sits on the back marker
+  if (rider.g.parent === a.body) {
+    r.seatMark.updateWorldMatrix(true, false);
+    r.seatMark.getWorldPosition(_v); a.body.worldToLocal(_v);
+    rider.g.position.set(_v.x, _v.y + cfg.seat, _v.z + cfg.seatZ);
+  }
 }
 function paintModel(root, style) {
   const c = (style && style.colors) || {}, gl = (style && style.glow) || {};
   root.traverse(o => {
     if (!o.isMesh) return;
     const k = o.userData.key;
+    if (o.userData.baseMap === undefined) o.userData.baseMap = o.material.map;
+    if (o.userData.baseMap) {
+      const want = style && style.recolor ? recolorTex(o.userData.baseMap, style.recolor, o.uuid + style.key) : o.userData.baseMap;
+      if (o.material.map !== want) { o.material.map = want; o.material.needsUpdate = true; }
+    }
     if (c[k] !== undefined) o.material.color.setHex(c[k]); else o.material.color.copy(o.userData.baseColor);
     o.material.emissive.setHex(gl[k] || 0);
   });
@@ -309,7 +436,9 @@ function makeModelAnimal(key, style) {
   const g = new THREE.Group(), body = group(0, 0, 0, g);
   const inner = m.gltf.scene;
   inner.scale.setScalar(a.scale); inner.rotation.set(0, Math.PI, 0); inner.position.set(0, 0, 0);
-  body.add(inner); paintModel(inner, style);
+  // tilt: a flyer leans forward so its back is flat (lift keeps it at the right height)
+  const tilt = group(0, a.lift || 0, 0, body); tilt.rotation.x = -(a.tilt || 0); tilt.add(inner);
+  paintModel(inner, style);
   for (const n in m.acts) { m.acts[n].setEffectiveWeight(0); m.acts[n].time = 0; }
   return { g, body, neck: null, head: null, tail: null, legs: [], kind: 'model', model: m, inner, w: { gallop: 1, jump: 0, death: 0 }, cycle: 0, spread: a.spread };
 }
@@ -489,21 +618,24 @@ let animal = null, rider = makeRider(), riderFly = null;
 const speedAt = d => 9.5 + 11 * (1 - Math.exp(-d / 1400));
 
 // ready: the model for this animal has loaded (or failed: then a simple pony stands in)
-const animalReady = k => !ANIMALS[k].model || (models[ANIMALS[k].model] && models[ANIMALS[k].model].state !== 'loading');
+const modelOf = (k, sk) => (ANIMALS[k].parts ? styleOf(k, sk || styleKey).model : ANIMALS[k].model);
+const animalReady = (k, sk) => { const n = modelOf(k, sk); return !n || (models[n] && models[n].state !== 'loading'); };
 function setAnimal(key, sk) {
   if (animal) {
-    if (animal.inner) animal.body.remove(animal.inner);
+    if (animal.inner && animal.inner.parent) animal.inner.parent.remove(animal.inner);
     if (animal.ownMats) animal.ownMats.forEach(m => m.dispose());
     scene.remove(animal.g);
   }
   animalKey = key; A = ANIMALS[key]; styleKey = sk || styleKey;
   const style = styleOf(key, styleKey);
-  const m = A.model && models[A.model];
-  if (A.model && m && m.state === 'ready') animal = makeModelAnimal(key, style);
+  const mn = modelOf(key, styleKey), m = mn && models[mn];
+  if (A.parts && m && m.state === 'ready') animal = makePartsAnimal(key, style);
+  else if (A.model && m && m.state === 'ready') animal = makeModelAnimal(key, style);
   else if (key === 'ostrich') animal = makeOstrich(style);
   else {
     animal = makePony();
-    if (A.model) loadModel(A.model, () => { if (animalKey === key && st.mode !== 'run') setAnimal(key); menuStats(); });
+    // swap in the real model only when it really loaded (a failed load must not retry in a loop), and only in the menu
+    if (mn) { const sk2 = styleKey; loadModel(mn, () => { if (models[mn] && models[mn].state === 'ready' && animalKey === key && styleKey === sk2 && st.mode === 'menu') setAnimal(key, sk2); menuStats(); }); }
   }
   scene.add(animal.g);
   animal.body.add(rider.g);
@@ -512,6 +644,7 @@ function setAnimal(key, sk) {
   rider.fit(animal.spread || A.spread);
   rider.saddle.visible = animal.kind === 'model';
   if (animal.kind === 'model') { animateModel(animal, 0); }
+  if (animal.kind === 'parts') { animateParts(animal, 0); }
 }
 
 // hints for new players: shown once per obstacle type per run, only while best < 1500 m
@@ -528,7 +661,7 @@ function startRun() {
   clearThings(); clearScenery();
   rand = rng((Date.now() ^ (Math.random() * 1e9)) >>> 0);
   dist = 0; v = speedAt(0) * A.speed; lane = 1; px = 0; py = 0; vy = 0; slide = 0; coins = 0; gems = 0; dead = null; deadT = 0; t = 0;
-  charge = 0; sprint = 0; milestone = 500; queuedJump = 0; shake = 0;
+  charge = 0; sprint = 0; milestone = 500; queuedJump = 0; shake = 0; landSafe = 0;
   nextRow = 34; lastRowEnd = 20;
   setAnimal(animalKey);
   animal.g.position.set(0, 0, 0); animal.g.rotation.set(0, 0, 0); animal.body.position.set(0, 0, 0); animal.body.rotation.set(0, 0, 0); animal.body.scale.set(1, 1, 1);
@@ -546,6 +679,7 @@ function act(a) {
   if (st.mode !== 'run' || st.paused || dead) return;
   if (a === 'left' && lane > 0) { lane--; sound('lane'); }
   else if (a === 'right' && lane < 2) { lane++; sound('lane'); }
+  else if ((a === 'jump' || a === 'duck') && A.ability === 'fly' && sprint > 0) return;   // flying high: nothing to jump or duck
   else if (a === 'jump') {
     if (py <= 0.001) doJump();
     else if (A.ability === 'double' && !usedDouble) { usedDouble = true; vy = A.jump * 0.85; airT = 0; airTotal = 2 * vy / GRAV; slide = 0; sound('jump'); puff(px, py + 0.4, 0.3, 0xffffff, 0, -1, 2, 0.5, 1.2, true, 0.6); }
@@ -554,7 +688,7 @@ function act(a) {
   else if (a === 'duck') { queuedJump = 0; if (py > 0.001) { vy = Math.min(vy, -16); slide = 0.75; } else { slide = 0.75; sound('duck'); } }
   else if (a === 'ability' && POWERS[A.ability] && charge >= 1 && !sprint) { const P = POWERS[A.ability]; sprint = P.time; charge = 0; sound('sprint'); banner(P.label + '!', 800); }
 }
-let usedDouble = false, airT = 0, airTotal = 1;
+let usedDouble = false, airT = 0, airTotal = 1, landSafe = 0;
 function doJump() { vy = A.jump; py = 0.002; slide = 0; queuedJump = 0; usedDouble = false; airT = 0; airTotal = 2 * vy / GRAV; sound('jump'); }
 
 // ---------- update ----------
@@ -570,10 +704,13 @@ function update(dt) {
   const tx = LANES[lane];
   px += Math.sign(tx - px) * Math.min(Math.abs(tx - px), A.laneSpeed * dt);
   // jump and duck
-  if (py > 0 || vy > 0) { airT += dt; vy -= GRAV * dt; py += vy * dt; if (py <= 0) { py = 0; vy = 0; if (queuedJump > 0) doJump(); else dust(6); } }
+  const flying = A.ability === 'fly' && sprint > 0;
+  if (flying) { py += (P.height - py) * Math.min(1, dt * 4); vy = 0; airT = 0; airTotal = 1; }
+  else if (py > 0 || vy > 0) { airT += dt; vy -= GRAV * dt * (A.ability === 'glide' && vy < 0 && slide <= 0 ? 0.28 : 1); if (A.ability === 'glide' && slide <= 0) vy = Math.max(vy, -3.2); py += vy * dt; if (py <= 0) { py = 0; vy = 0; if (queuedJump > 0) doJump(); else dust(6); } }
   if (queuedJump > 0) queuedJump -= dt;
   if (slide > 0) slide -= dt;
-  if (sprint > 0) { sprint -= dt; if (sprint <= 0) sprint = 0; }
+  if (sprint > 0) { sprint -= dt; if (sprint <= 0) { sprint = 0; if (A.ability === 'fly') landSafe = 0.7; } }
+  if (landSafe > 0) landSafe -= dt;
   else if (P && charge < 1) { charge = Math.min(1, charge + dt / P.charge); if (charge >= 1) sound('ready'); }
   if (Math.floor(dist) >= milestone) { banner(milestone + ' m!', 1100); sound('mile'); milestone += 500; }
   // hits and pickups
@@ -601,6 +738,7 @@ function update(dt) {
     }
     const front = dist + 0.9, back = dist - 0.7;
     if (o.d > front || o.d + o.len < back) continue;
+    if ((flying && py > 2.2) || landSafe > 0) continue;   // high above everything, or just landing after a flight
     if (o.type === 'ditch') {
       if (py <= 0 && dist > o.d + 0.35 && dist < o.d + o.len - 0.35 && !sprint) return die('ditch');
       continue;
@@ -686,15 +824,16 @@ const _v = new THREE.Vector3();
 function animateModel(a, dt) {
   const m = a.model, acts = m.acts, air = py > 0.001, cfg = ANIMALS[animalKey];
   const running = !dead || deadT < 0.15;
-  if (running) a.cycle += dt * Math.max(v, st.mode === 'run' ? 0 : 7) / cfg.stride;
+  if (running) a.cycle += cfg.flap ? dt * cfg.flap * (sprint > 0 ? 1.4 : 1) : dt * Math.max(v, st.mode === 'run' ? 0 : 7) / cfg.stride;
   const target = { gallop: 1, jump: 0, death: 0 };
   if (dead && dead !== 'ditch') { target.gallop = 0; target.death = 1; }
   else if (air && !dead) { target.gallop = 0; target.jump = 1; }
   const k = Math.min(1, dt * 14);
   for (const n in target) a.w[n] += (target[n] - a.w[n]) * (dt === 0 ? 1 : k);
-  const G1 = acts.Gallop, J = acts.Gallop_Jump, D = acts.Death;
+  const cl = cfg.clips || {}, G1 = acts[cl.run || 'Gallop'], J = acts[cl.jump || 'Gallop_Jump'], D = acts[cl.death || 'Death'];
+  if (G1 === J) { a.w.gallop = Math.max(0, 1 - a.w.death); a.w.jump = 0; }   // one clip for running and jumping
   if (G1) { G1.time = (a.cycle % 1) * G1.getClip().duration; G1.setEffectiveWeight(a.w.gallop); }
-  if (J) { const f = Math.min(1, airT / Math.max(0.2, airTotal)); J.time = (0.12 + f * 0.6) * J.getClip().duration; J.setEffectiveWeight(a.w.jump); }
+  if (J && J !== G1) { const f = Math.min(1, airT / Math.max(0.2, airTotal)); J.time = (0.12 + f * 0.6) * J.getClip().duration; J.setEffectiveWeight(a.w.jump); }
   if (D) { D.time = Math.min(D.getClip().duration * 0.95, (dead ? deadT : 0) * 1.6); D.setEffectiveWeight(a.w.death); }
   m.mixer.update(0);
   // keep the rider on the back bone
@@ -706,11 +845,29 @@ function animateModel(a, dt) {
 }
 function animateAnimal(dt) {
   const a = animal; if (!a) return;
+  if (a.kind === 'parts') {
+    const air = py > 0.001, duck = slide > 0 && !air;
+    a.body.scale.y += ((duck ? 0.7 : 1) - a.body.scale.y) * Math.min(1, dt * 18);
+    a.g.position.set(px, py + (a.cfg.hover || 0), 0);
+    a.g.rotation.y = (px - LANES[lane]) * 0.18;
+    a.g.rotation.z = (px - LANES[lane]) * (a.cfg.legs ? 0.04 : 0.14);
+    a.g.rotation.x = 0;
+    if (dead && dead !== 'ditch') { a.g.rotation.x = Math.min(1.2, deadT * 4); a.g.position.y = Math.max(0, py + (a.cfg.hover || 0) - deadT * 2); }
+    if (dead === 'ditch') { a.g.position.y = -Math.min(1.1, deadT * 1.6); a.g.rotation.x = Math.min(0.5, deadT); }
+    animateParts(a, dt);
+    if (!dead) { rider.chest.rotation.x = -(duck ? 0.9 : sprint > 0 ? 0.6 : 0.25) - (air ? 0.15 : 0); rider.chest.position.y = 0.25; rider.arms.forEach((s, i) => { s.rotation.x = 1.0 + Math.sin(a.cycle * 12 + i) * 0.1; }); }
+    if (A.ability === 'fly' && sprint > 0 && Math.random() < 0.6) puff(px + (Math.random() - 0.5) * 0.4, py + 1.4, -2.2, 0xff7a1a, (Math.random() - 0.5) * 2, 0.5, -6, 0.4, 0.8, true);
+    if (!air && !dead && a.cfg.legs && Math.random() < dt * v * 0.5) puff(px + (Math.random() - 0.5) * 0.7, 0.15, 1.0, 0xd8c08a, (Math.random() - 0.5), 0.8, 3, 0.5, 0.45, false);
+    glowPuffs(a, dt);
+    return;
+  }
   if (a.kind === 'model') {
     const air = py > 0.001, duck = slide > 0 && !air;
     a.body.scale.y += ((duck ? 0.66 : 1) - a.body.scale.y) * Math.min(1, dt * 18);
-    a.g.position.set(px, py, 0);
+    a.g.position.set(px, py + (A.hover || 0), 0);
     a.g.rotation.y = (px - LANES[lane]) * 0.18;
+    a.g.rotation.z = A.hover ? (px - LANES[lane]) * 0.12 : 0;   // a flyer banks into the turn
+    if (A.ability === 'fly' && sprint > 0 && Math.random() < 0.6) puff(px + (Math.random() - 0.5) * 0.4, py + 1.4, -2.4, 0xff7a1a, (Math.random() - 0.5) * 2, 0.5, -6, 0.4, 0.8, true);
     if (dead === 'ditch') { a.g.position.y = -Math.min(1.1, deadT * 1.6); a.g.rotation.x = Math.min(0.5, deadT); }
     animateModel(a, dt);
     if (!dead) { rider.chest.rotation.x = -(duck ? 0.9 : sprint > 0 ? 0.6 : 0.25) - (air ? 0.15 : 0); rider.chest.position.y = 0.25; rider.arms.forEach((s, i) => { s.rotation.x = 1.0 + Math.sin(a.cycle * 12 + i) * 0.1; }); }
@@ -752,8 +909,8 @@ function animateAnimal(dt) {
 // glowing styles leave a few sparks
 function glowPuffs(a, dt) {
   const style = styleOf(animalKey, styleKey);
-  if (!style.glow || dead || a.kind === 'pony' || Math.random() > dt * 14) return;
-  const c = style.trail || Object.values(style.glow).sort((x, y) => y - x)[0];
+  if (!(style.glow || style.glowFx) || dead || a.kind === 'pony' || Math.random() > dt * 14) return;
+  const c = style.trail || Object.values(style.glow || {}).sort((x, y) => y - x)[0] || 0xffffff;
   const col = new THREE.Color(c).multiplyScalar(2.5).getHex();
   puff(px + (Math.random() - 0.5) * 0.8, py + 0.6 + Math.random() * 1.2, 0.4 + Math.random() * 1.2, col, 0, 0.6, 3, 0.5, 0.35, true, 0.8);
 }
@@ -839,8 +996,9 @@ function menuStats() {
   }).join('');
   const a = ANIMALS[animalKey];
   $('info').textContent = a.info;
-  const noModel = a.model && models[a.model] && models[a.model].state === 'failed';
-  $('styles').innerHTML = noModel ? '<p class="how">Could not load this animal. Check your internet.</p>' : STYLES[animalKey].map(x => '<button class="style' + (x.key === styleKey ? ' on' : '') + '" data-s="' + x.key + '"><i style="background:' + x.sw + '"></i>' + x.name + (hasStyle(animalKey, x.key) ? '' : ' <small>💎 ' + x.gems + '</small>') + '</button>').join('');
+  const mnow = modelOf(animalKey, styleKey), noModel = mnow && models[mnow] && models[mnow].state === 'failed';
+  $('info').textContent = noModel ? 'Could not load this look. Check your internet, or pick another one.' : a.info;
+  $('styles').innerHTML = STYLES[animalKey].map(x => '<button class="style' + (x.key === styleKey ? ' on' : '') + '" data-s="' + x.key + '"><i style="background:' + x.sw + '"></i>' + x.name + (hasStyle(animalKey, x.key) ? '' : ' <small>💎 ' + x.gems + '</small>') + '</button>').join('');
   // the big button
   const sx = styleOf(animalKey, styleKey);
   playBtn.disabled = false;
@@ -976,14 +1134,18 @@ function frame(now) {
   if (st.mode === 'run' && !lowQuality) { fpsT += dt; fpsN++; if (fpsT > 4) { if (fpsN / fpsT < 32) { lowQuality = true; renderer.shadowMap.enabled = false; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); resize(); } fpsT = 0; fpsN = 0; } }
 }
 // load the models: your own animal first, then the rest
-for (const k of [animalKey, ...Object.keys(ANIMALS)]) if (ANIMALS[k].model) loadModel(ANIMALS[k].model, () => { if (st.mode === 'menu') { if (k === animalKey) setAnimal(animalKey); menuStats(); } });
+for (const k of [animalKey, ...Object.keys(ANIMALS)]) {
+  const n = k === animalKey ? modelOf(k, styleKey) : modelOf(k, STYLES[k][0].key);
+  if (n) loadModel(n, () => { if (st.mode === 'menu') menuStats(); });   // setAnimal below swaps in your own model when it is ready
+}
 setAnimal(animalKey); updateScenery(0); show('menu');
 requestAnimationFrame(frame);
 
 // ---------- test hook (only on this computer) ----------
 if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
   window.__st = {
-    hold: false, start: (k, sk) => { if (k) { if (!owned.includes(k)) owned.push(k); setAnimal(k, sk || STYLES[k][0].key); if (sk && !hasStyle(k, sk)) (ownedStyles[k] = ownedStyles[k] || []).push(sk); } startRun(); }, act, update,
+    // test: start a run (returns false if that style's model has not loaded yet)
+    hold: false, start: (k, sk) => { if (k) { if (!owned.includes(k)) owned.push(k); setAnimal(k, sk || STYLES[k][0].key); if (sk && !hasStyle(k, sk)) (ownedStyles[k] = ownedStyles[k] || []).push(sk); } startRun(); return st.mode === 'run'; }, act, update,
     sim(sec) { const n = Math.round(sec / STEP); for (let i = 0; i < n && st.mode === 'run'; i++) update(STEP); },
     step(n, dt) { for (let i = 0; i < (n || 1); i++) { if (st.mode === 'run') update(dt || STEP); draw(dt || STEP); } },
     get state() { return { mode: st.mode, dist, v, lane, px, py, slide, coins, gems, dead, charge, sprint, things: things.length }; },
@@ -1000,6 +1162,7 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
       return { rows, bad: bad.slice(0, 10), nBad: bad.length };
     },
     jumpTo(d) { dist = d; updateScenery(dist); },
+    animal: () => animal,
     renderer, scene, camera,
   };
 }
