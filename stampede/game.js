@@ -94,7 +94,7 @@ const STYLES = {
 const board = () => window.StampedeBoard || null;
 if (board()) board().onClose = () => { if (st.mode === 'menu') menuStats(); else if (st.mode === 'over') overInfo(lastRun); };
 // keys on the high score buttons and fields belong to them, not to the game
-const boardFocus = () => { const a = document.activeElement; return !!(a && a.closest && a.closest('#board, #lb, #lbOpen, #lbOpen2')); };
+const boardFocus = () => { const a = document.activeElement; return !!(a && a.closest && a.closest('#board, #lb, #lbOpen, #lbOpen2, .more, .small-link')); };
 
 // ---------- storage (never breaks the game) ----------
 const store = {
@@ -923,6 +923,7 @@ function gameOver() {
   lastRun = m; overInfo(m);
   overAt = performance.now();
   show('over');
+  ui.over.classList.add('wait'); setTimeout(() => ui.over.classList.remove('wait'), 900);
   if (board()) board().runEnd({ meters: m });
 }
 

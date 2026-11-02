@@ -102,6 +102,14 @@
   #lbList .sc { min-width:40px; text-align:right; font-weight:900; color:var(--gold); }
   .toprow { display:flex; gap:8px; align-items:center; }
   .toprow .ghost { font-size:13px; padding:6px 12px; }
+  /* links to the other DDD games */
+  .more { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  .pill { color:#cfd6da; text-decoration:none; border:1px solid rgba(255,255,255,.25); border-radius:20px; padding:6px 12px; font-size:13px; font-weight:700; background:rgba(0,0,0,.25); }
+  .btn { font:inherit; cursor:pointer; border-radius:12px; padding:10px 14px; font-weight:800; font-size:15px; text-decoration:none; display:inline-block; }
+  .other { background:#1b2a36; color:var(--gold); box-shadow:0 4px 0 #000; line-height:1.25; border:1px solid rgba(242,193,78,.35); }
+  .other small { display:block; font-weight:600; font-size:12px; color:#cfd6da; }
+  .small-link { color:var(--muted); font-size:13px; }
+  #over.wait .more, #over.wait .small-link { pointer-events:none; opacity:.6; }   /* just died: no tap goes to another game by accident */
 </style>
 </head>
 <body>
@@ -130,6 +138,7 @@
     <p class="how"><b>Swipe</b> left/right to switch lanes, <b>up</b> to jump, <b>down</b> to duck. Tap also jumps.<span class="keys"><br>
       Keyboard: <b>arrows</b> or <b>WASD</b>, <b>Space</b> jump, <b>Shift</b> power.</span></p>
     <p class="how" id="menuStats"></p>
+    <nav class="more" aria-label="More games"><a class="pill" href="../dash/">🎮 Polder Dash</a><a class="pill" href="../jump/">🎮 Ditch Jumper</a><a class="pill" href="../">All games</a></nav>
   </div>
 </div>
 
@@ -152,6 +161,11 @@
   </div>
   <button class="big" id="againBtn">AGAIN</button>
   <div class="toprow"><button class="ghost" id="menuBtn">Pick animal</button><button id="lbOpen2" class="ghost">🏆 High scores</button></div>
+  <div class="more">
+    <a class="btn other" href="../dash/">🎮 Also play POLDER DASH<small>run the haunted dike · free</small></a>
+    <a class="btn other" href="../jump/">🎮 Also play DITCH JUMPER<small>vault over Dutch ditches · free</small></a>
+  </div>
+  <a class="small-link" href="../">More games by DDD Games</a>
 </div>
 
 <div id="board" class="screen hidden">
@@ -169,6 +183,6 @@
 </div>
 
 <script src="board.js?v=1"></script>
-<script type="module" src="game.js?v=47"></script>
+<script type="module" src="game.js?v=48"></script>
 </body>
 </html>
