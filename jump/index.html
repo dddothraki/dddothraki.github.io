@@ -45,6 +45,9 @@
   .big:disabled { opacity:.7; }
   .other { background:#1b2a36; color:var(--gold); box-shadow:0 4px 0 #000; line-height:1.25; border:1px solid rgba(242,193,78,.35); }
   .other small { display:block; font-weight:600; font-size:12px; color:#cfd6da; }
+  /* buttons to the other DDD browser games (same in every game) */
+  .games { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .games .btn.other { font-size:14px; padding:9px 14px; }
   .ghostbtn { background:transparent; color:#cfd6da; border:1px solid rgba(255,255,255,.25); font-size:15px; padding:9px 16px; }
   .small-link { color:var(--muted); font-size:13px; }
   .stats { display:flex; gap:26px; }
@@ -117,8 +120,7 @@
     <p class="how">Let go right before the edge.<br><b>Yellow strip</b> = PERFECT (+1) · <b>golden clog</b> = +1<br>Watch out for wind and mud!<br>PC: hold Space, or click and hold</p>
     <p class="how" id="bestTitle"></p>
     <button id="lbOpen" class="ghostbtn">🏆 High scores</button>
-    <a class="btn other" href="../dash/">Also play POLDER DASH<small>run the haunted dike · free</small></a>
-    <a class="btn other" href="../stampede/">Also play STAMPEDE<small>ride wild animals in 3D · free</small></a>
+    <div class="games"><a class="btn other" href="../dash/">🎮 POLDER DASH</a><a class="btn other" href="../stampede/">🎮 STAMPEDE</a></div>
     <a class="small-link" href="../">More games by DDD Games</a>
     <button id="simpleBtn" class="ghostbtn hidden">Slow phone? Try simple mode</button>
     <a id="try3d" class="small-link hidden" href="?3d">Try the 3D version</a>
@@ -152,8 +154,7 @@
       <button id="simpleBtn2" class="ghostbtn hidden">Try simple mode</button>
       <textarea id="shareBox" class="hidden" readonly></textarea>
     </div>
-    <a class="btn other" href="../dash/">🎮 Also play POLDER DASH<small>run the haunted dike · free</small></a>
-    <a class="btn other" href="../stampede/">🎮 Also play STAMPEDE<small>ride wild animals in 3D · free</small></a>
+    <div class="games"><a class="btn other" href="../dash/">🎮 POLDER DASH</a><a class="btn other" href="../stampede/">🎮 STAMPEDE</a></div>
     <a class="small-link" href="../">More games by DDD Games</a>
   </div>
 

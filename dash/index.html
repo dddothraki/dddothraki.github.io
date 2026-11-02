@@ -45,6 +45,9 @@
   .roblox small { display:block; font-weight:600; font-size:12px; opacity:.85; }
   .other { background:#1b2a36; color:var(--gold); box-shadow:0 4px 0 #000; line-height:1.25; border:1px solid rgba(242,193,78,.35); }
   .other small { display:block; font-weight:600; font-size:12px; color:#cfd6da; }
+  /* buttons to the other DDD browser games (same in every game) */
+  .games { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .games .btn.other { font-size:14px; padding:9px 14px; }
   .ghostbtn { background:transparent; color:#cfd6da; border:1px solid rgba(255,255,255,.25); font-size:15px; padding:9px 16px; }
   .small-link { color:var(--muted); font-size:13px; }
   .stats { display:flex; gap:26px; }
@@ -52,7 +55,7 @@
   .stats span { font-size:12px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); }
   #newBest { color:var(--green); font-weight:900; letter-spacing:2px; }
   #over .btns { display:flex; flex-direction:column; gap:10px; width:100%; max-width:290px; }
-  #over.wait .btns, #over.wait .roblox, #over.wait .other { pointer-events:none; opacity:.6; }
+  #over.wait .btns, #over.wait .roblox, #over.wait .other, #over.wait .small-link { pointer-events:none; opacity:.6; }
   #hud { position:absolute; left:0; right:0; top:0; display:flex; align-items:flex-start; justify-content:space-between;
     padding:calc(8px + env(safe-area-inset-top)) 10px 0; pointer-events:none; }
   #hud .num { font-weight:900; font-size:24px; text-shadow:0 2px 0 #000; }
@@ -124,7 +127,7 @@
     <p class="how" id="bestTitle"></p>
     <button id="lbOpen" class="ghostbtn">🏆 High scores</button>
     <a class="btn roblox" href="https://www.roblox.com/games/77894735497943" target="_blank" rel="noopener">Play the full game on Roblox<small>POLDER ESCAPE · free co-op horror</small></a>
-    <a class="btn other" href="../stampede/">Also play STAMPEDE<small>ride wild animals in 3D · free</small></a>
+    <div class="games"><a class="btn other" href="../jump/">🎮 DITCH JUMPER</a><a class="btn other" href="../stampede/">🎮 STAMPEDE</a></div>
     <a class="small-link" href="../">More games by DDD Games</a>
     <button id="simpleBtn" class="ghostbtn hidden">Slow phone? Try simple mode</button>
     <a id="try3d" class="small-link hidden" href="?3d">Try the 3D version</a>
@@ -158,7 +161,7 @@
       <textarea id="shareBox" class="hidden" readonly></textarea>
     </div>
     <a class="btn roblox" href="https://www.roblox.com/games/77894735497943" target="_blank" rel="noopener">🎮 Play POLDER ESCAPE on Roblox<small>The full game · free · 1–10 players</small></a>
-    <a class="btn other" href="../stampede/">🎮 Also play STAMPEDE<small>ride wild animals in 3D · free</small></a>
+    <div class="games"><a class="btn other" href="../jump/">🎮 DITCH JUMPER</a><a class="btn other" href="../stampede/">🎮 STAMPEDE</a></div>
     <a class="small-link" href="../">More games by DDD Games</a>
   </div>
 
