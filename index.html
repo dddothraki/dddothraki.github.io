@@ -107,6 +107,7 @@
   .top .empty { color: var(--muted); justify-content: center; background: none; }
   .beat { margin: 0; color: #cfd6da; font-size: 15px; min-height: 1.5em; }
   .beat b { color: var(--gold); }
+  article.card { scroll-margin-top: 14px; }
   .board .btn { align-self: flex-start; font-size: 17px; padding: 11px 20px; }
 
   footer { padding: 30px 0 40px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); margin-top: 20px; }
@@ -120,13 +121,13 @@
     .scores { grid-template-columns: 1fr; }
     /* telefoon: spel, zijn high scores, volgende spel, zijn high scores */
     main.wrap { display: flex; flex-direction: column; }
-    #dash, #scores:not([hidden]), #scores .scores { display: contents; }
-    #dash > .label { order: 1; margin-top: 28px; }
-    #dash > article { margin-bottom: 18px; }
+    #play, #scores:not([hidden]), #scores .scores { display: contents; }
+    #play > .label { order: 1; margin-top: 28px; }
+    #play > article { margin-bottom: 18px; }
     .dash + .dash { margin-top: 0; }
-    #dash > article[data-g="dash"] { order: 2; }
+    #play > article[data-g="dash"] { order: 2; }
     .board[data-game="dash"] { order: 3; margin-bottom: 30px; }
-    #dash > article[data-g="jump"] { order: 4; }
+    #play > article[data-g="jump"] { order: 4; }
     .board[data-game="jump"] { order: 5; margin-bottom: 10px; }
     #scores > .label { display: none; }
     main.wrap > section[aria-labelledby="roblox-title"] { order: 6; }
@@ -153,7 +154,7 @@
     <nav aria-label="Games">
       <a href="#dash">Polder Dash</a>
       <a href="#jump">Ditch Jumper</a>
-      <a href="#scores">High scores</a>
+      <a href="#top-scores">High scores</a>
       <a href="#polder-escape">Polder Escape</a>
       <a href="#roll-and-steal">Roll &amp; Steal</a>
     </nav>
@@ -166,9 +167,9 @@
     <p>Play Polder Dash and Ditch Jumper right here in your browser, then grab your friends for our Roblox games. Everything is free.</p>
   </div>
 
-  <section id="dash" aria-labelledby="dash-title">
+  <section id="play" aria-labelledby="dash-title">
     <p class="label">Play now, no download</p>
-    <article class="card dash" data-g="dash">
+    <article class="card dash" id="dash" data-g="dash">
       <div class="shot">
         <img src="assets/dash_shot.jpg" alt="Polder Dash in 3D: a farmer in a raincoat runs along a dark dike while the waterwolf leaps out of the ditch, with a scarecrow, a ghost, a fence and a hay bale ahead" width="540" height="912">
         <span class="badge">New · 3D</span>
@@ -205,7 +206,7 @@
   <section id="scores" aria-labelledby="scores-title" hidden>
     <p class="label" id="scores-title">🏆 High scores · can you beat them?</p>
     <div class="scores">
-      <article class="card board" data-game="dash" data-unit="m" data-href="dash/">
+      <article class="card board" id="top-scores" data-game="dash" data-unit="m" data-href="dash/">
         <div class="board-head">
           <h3>🏆 POLDER <span>DASH</span></h3>
           <div class="tabs" role="group" aria-label="Polder Dash period"><button data-p="day">Today</button><button data-p="all" class="on">All time</button></div>
