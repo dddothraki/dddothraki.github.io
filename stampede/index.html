@@ -71,6 +71,37 @@
   @keyframes pulse { 50% { box-shadow:0 0 0 4px rgba(0,0,0,.35), 0 0 22px 6px rgba(242,193,78,.7); } }
   #banner { position:fixed; left:0; right:0; top:28%; text-align:center; font-size:30px; font-weight:900; color:#fff;
     text-shadow:0 3px 0 #000, 0 0 14px rgba(0,0,0,.6); pointer-events:none; transition:opacity .4s; }
+  input { -webkit-user-select:text; user-select:text; touch-action:manipulation; }
+  #lb { width:100%; max-width:290px; display:flex; flex-direction:column; gap:6px; }
+  #lbForm { display:flex; gap:8px; }
+  #lbIn, #lbCode { font:inherit; font-size:16px; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.3); background:rgba(0,0,0,.45); color:#fff; }
+  #lbIn { flex:1; min-width:0; }
+  #lbCodeRow { width:100%; }
+  #lbCode { width:100%; }
+  #lbMeBox { width:100%; max-width:290px; display:flex; flex-direction:column; gap:6px; align-items:center; }
+  #lbMeBox #lbForm { width:100%; }
+  #lbMe .code { color:var(--gold); letter-spacing:1px; }
+  .how.small { font-size:12px; }
+  #lbPost { padding:10px 16px; background:var(--gold); }
+  #lbPost:disabled { opacity:.6; }
+  .linkbtn { background:none; padding:0; color:var(--gold); font-size:13px; font-weight:700; text-decoration:underline; border-radius:0; }
+  .lbgood { color:var(--green); font-weight:800; }
+  .lbbad { color:#ff8a7a; }
+  #board .tabs { display:flex; gap:6px; }
+  #board .tabs button { font-size:14px; padding:8px 12px; background:rgba(255,255,255,.1); color:#cfd6da; }
+  #board .tabs button.on { background:var(--gold); color:#111; }
+  #board { background:rgba(4,7,11,.9); }
+  #lbList { list-style:none; margin:0; padding:0; width:100%; max-width:300px; }
+  #lbList li { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px; font-size:15px; }
+  #lbList li:nth-child(odd) { background:rgba(255,255,255,.05); }
+  #lbList li.me { background:rgba(242,193,78,.2); }
+  #lbList .rk { width:22px; color:var(--muted); font-weight:800; text-align:right; }
+  #lbList li:nth-child(-n+3) .rk { color:var(--gold); }
+  #lbList .nm { flex:1; text-align:left; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #lbList .own { font-size:.9em; line-height:1; vertical-align:.18em; }
+  #lbList .sc { min-width:40px; text-align:right; font-weight:900; color:var(--gold); }
+  .toprow { display:flex; gap:8px; align-items:center; }
+  .toprow .ghost { font-size:13px; padding:6px 12px; }
 </style>
 </head>
 <body>
@@ -88,7 +119,7 @@
 
     <h1>STAMP<span>EDE</span></h1>
     <p class="tag">Ride wild animals. Go as far as you can.</p>
-    <p id="wallet"></p>
+    <div class="toprow"><p id="wallet"></p><button id="lbOpen" class="ghost">🏆 High scores</button></div>
   </div>
   <div class="mgap"></div>
   <div class="mbot">
@@ -113,10 +144,31 @@
   <div class="stats"><div><b id="oDist">0</b><span>meters</span></div><div><b id="oCoins">0</b><span>coins</span></div></div>
   <p id="newBest" class="hidden">NEW BEST!</p>
   <p class="how" id="oInfo"></p>
+  <div id="lb" class="hidden">
+    <div id="lbForm" class="hidden"><input id="lbIn" maxlength="12" placeholder="Your name" aria-label="Your name" autocomplete="nickname" enterkeyhint="send" spellcheck="false" autocapitalize="off"><button id="lbPost">Post</button></div>
+    <div id="lbCodeRow" class="hidden"><input id="lbCode" maxlength="9" placeholder="Name code (ABCD-2345)" aria-label="Name code" autocomplete="off" spellcheck="false" autocapitalize="characters"></div>
+    <p id="lbName" class="how hidden">Playing as <b id="lbWho"></b> · <button id="lbChange" class="linkbtn">change</button></p>
+    <p id="lbMsg" class="how"></p>
+  </div>
   <button class="big" id="againBtn">AGAIN</button>
-  <button class="ghost" id="menuBtn">Pick animal</button>
+  <div class="toprow"><button class="ghost" id="menuBtn">Pick animal</button><button id="lbOpen2" class="ghost">🏆 High scores</button></div>
 </div>
 
-<script type="module" src="game.js?v=39"></script>
+<div id="board" class="screen hidden">
+  <h2>🏆 High scores</h2>
+  <div class="tabs"><button data-p="day" class="on">Today</button><button data-p="week">This week</button><button data-p="all">All time</button></div>
+  <ol id="lbList"></ol>
+  <p id="lbEmpty" class="how hidden"></p>
+  <p id="lbReset" class="how"></p>
+  <div id="lbMeBox">
+    <p id="lbMe" class="how"></p>
+    <p id="lbMeHint" class="how small"></p>
+    <button id="lbMeBtn" class="linkbtn">Change name · use a name code</button>
+  </div>
+  <button id="lbBack" class="big">Back</button>
+</div>
+
+<script src="board.js?v=1"></script>
+<script type="module" src="game.js?v=41"></script>
 </body>
 </html>

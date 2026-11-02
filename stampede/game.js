@@ -83,6 +83,12 @@ const STYLES = {
   ],
 };
 
+// high scores (board.js); the game works without it
+const board = () => window.StampedeBoard || null;
+if (board()) board().onClose = () => { if (st.mode === 'menu') menuStats(); else if (st.mode === 'over') overInfo(lastRun); };
+// keys on the high score buttons and fields belong to them, not to the game
+const boardFocus = () => { const a = document.activeElement; return !!(a && a.closest && a.closest('#board, #lb, #lbOpen, #lbOpen2')); };
+
 // ---------- storage (never breaks the game) ----------
 const store = {
   get(k, d) { try { const v = localStorage.getItem('stampede.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -672,6 +678,7 @@ function startRun() {
   banner('GO!', 900);
   hintSeen = {}; hintsLeft = store.get('best', 0) < 1500 ? 1 : 0;
   hud();
+  if (board()) board().runStart();
 }
 
 // ---------- actions ----------
@@ -781,7 +788,10 @@ function updateDead(dt) {
 }
 
 // ---------- game over ----------
-let overAt = 0;
+let overAt = 0, lastRun = 0;
+function overInfo(m) {
+  ui.oInfo.innerHTML = 'Best: ' + Math.max(m, store.get('best', 0)) + ' m · Saved: 🪙 ' + store.get('coins', 0) + '  💎 ' + store.get('gems', 0) + '<br>Spend 🪙 on new animals and 💎 on styles in the stable.';
+}
 const TITLES = { fence: 'Tripped over a fence!', hay: 'Bonk! Hay is hard.', beam: 'Duck next time!', cart: 'Hit by a hay cart!', ditch: 'Splash! Into the ditch.' };
 function gameOver() {
   st.mode = 'over';
@@ -792,9 +802,10 @@ function gameOver() {
   ui.overTitle.textContent = TITLES[dead] || 'Ouch!';
   ui.oDist.textContent = m; ui.oCoins.textContent = coins;
   ui.newBest.classList.toggle('hidden', !isBest);
-  ui.oInfo.innerHTML = 'Best: ' + Math.max(m, best) + ' m · Saved: 🪙 ' + bank + '  💎 ' + gemBank + '<br>Spend 🪙 on new animals and 💎 on styles in the stable.';
+  lastRun = m; overInfo(m);
   overAt = performance.now();
   show('over');
+  if (board()) board().runEnd({ meters: m });
 }
 
 // ---------- particles ----------
@@ -1063,8 +1074,9 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 // keyboard
 const KEYS = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', ArrowDown: 'duck', KeyS: 'duck', ShiftLeft: 'ability', ShiftRight: 'ability', KeyE: 'ability' };
 // Space/Enter are ours: never let them also press a focused button
-addEventListener('keyup', e => { if (e.code === 'Space' || e.code === 'Enter') e.preventDefault(); });
+addEventListener('keyup', e => { if (boardFocus() || (board() && board().open)) return; if (e.code === 'Space' || e.code === 'Enter') e.preventDefault(); });
 addEventListener('keydown', e => {
+  if ((board() && board().open) || boardFocus()) return;   // high scores screen open, or a high score button/field has focus
   if ((e.code === 'Space' || e.code === 'Enter') && document.activeElement && document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
   if (e.repeat) return;
   if ((e.code === 'Escape' || e.code === 'KeyP') && st.mode === 'run') { st.paused ? resume() : pause(); return; }
