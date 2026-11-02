@@ -17,7 +17,7 @@ const ANIMALS = {
   ostrich: { name: 'Ostrich', em: '🐦', price: 300, speed: 1.1, jump: 8.6, laneSpeed: 16, ability: 'sprint',
     spread: 1.15, info: 'Fast. ⚡ Sprint smashes through everything.' },
   stag: { name: 'Stag', em: '🦌', price: 800, speed: 1.05, jump: 10.0, laneSpeed: 15, ability: 'double',
-    model: 'Stag', scale: 0.52, seat: 0.14, seatZ: -0.6, spread: 0.66, stride: 3.6, info: 'Jumps high. Jump again in the air!' },
+    model: 'Stag', scale: 0.52, seat: 0.2, seatZ: -0.15, spread: 0.66, stride: 3.6, info: 'Jumps high. Jump again in the air!' },
   wolf: { name: 'Wolf', em: '🐺', price: 1500, speed: 1.15, jump: 8.8, laneSpeed: 18, ability: 'magnet',
     model: 'Wolf', scale: 0.7, seat: 0.12, seatZ: -0.1, spread: 0.6, stride: 3.2, info: 'Very fast. Pulls coins to you.' },
   bull: { name: 'Bull', em: '🐂', price: 2500, speed: 1.0, jump: 8.4, laneSpeed: 12.5, ability: 'charge',
