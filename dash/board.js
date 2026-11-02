@@ -9,10 +9,24 @@
     set: function (k, v) { try { localStorage.setItem('polderdash.' + k, JSON.stringify(v)); } catch (e) { /* privé-venster */ } },
   };
 
-  function utcDay(t) { return new Date(t).toISOString().slice(0, 10); }
+  // dagen en weken in Nederlandse tijd, net als de server (wisselt om 00:00 in Amsterdam)
+  var nlFmt = null;
+  try { nlFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Amsterdam', year: 'numeric', month: '2-digit', day: '2-digit' }); } catch (e) { nlFmt = null; }
+  function utcDay(t) {
+    if (nlFmt) {
+      try {
+        var p = {};
+        nlFmt.formatToParts(new Date(t)).forEach(function (x) { p[x.type] = x.value; });
+        if (p.year && p.month && p.day) return p.year + '-' + p.month + '-' + p.day;
+      } catch (e) { /* oude browser */ }
+    }
+    return new Date(t).toISOString().slice(0, 10);
+  }
   function utcWeek(t) {
-    var d = new Date(t), dow = (d.getUTCDay() + 6) % 7;
-    return utcDay(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - dow));
+    var d = utcDay(t).split('-');
+    var u = Date.UTC(+d[0], +d[1] - 1, +d[2]);
+    var dow = (new Date(u).getUTCDay() + 6) % 7; // maandag = 0
+    return new Date(u - dow * 86400000).toISOString().slice(0, 10);
   }
   // eigen beste ingestuurde score per periode, zodat we alleen insturen wat de lijst kan veranderen
   function posted() {

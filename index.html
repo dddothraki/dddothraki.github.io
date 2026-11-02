@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>DDD Games: Polder Dash, Polder Escape, Roll &amp; Steal an Egg</title>
-<meta name="description" content="Play Polder Dash in your browser, and our Roblox games Polder Escape (co-op horror) and Roll & Steal an Egg on EggMountain. All free.">
+<title>DDD Games: Polder Dash, Ditch Jumper, Polder Escape, Roll &amp; Steal an Egg</title>
+<meta name="description" content="Play Polder Dash and Ditch Jumper in your browser, and our Roblox games Polder Escape (co-op horror) and Roll & Steal an Egg on EggMountain. All free.">
 <meta name="theme-color" content="#070b10">
-<meta property="og:title" content="DDD Games: play Polder Dash now">
-<meta property="og:description" content="A haunted runner in your browser, plus our Roblox games Polder Escape and Roll & Steal an Egg. All free.">
+<meta property="og:title" content="DDD Games: play Polder Dash and Ditch Jumper now">
+<meta property="og:description" content="A haunted runner and a ditch-jumping game in your browser, plus our Roblox games Polder Escape and Roll & Steal an Egg. All free.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://dddothraki.github.io/assets/dash_card.jpg">
 <meta name="twitter:card" content="summary_large_image">
@@ -58,6 +58,8 @@
   .dash .body { padding: 28px; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
   .dash h2 { margin: 0; font-size: clamp(38px, 6vw, 60px); line-height: .95; font-weight: 900; }
   .dash h2 span { color: var(--gold); }
+  .dash + .dash { margin-top: 18px; }
+  .jump .shot img { object-position: center 55%; }
   .dash p { margin: 0; color: #cfd6da; font-size: 17px; }
   .facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
   .facts li { font-size: 13px; color: var(--ink); background: rgba(255,255,255,.06); border: 1px solid var(--line); padding: 4px 10px; border-radius: 99px; }
@@ -106,6 +108,7 @@
     </a>
     <nav aria-label="Games">
       <a href="#dash">Polder Dash</a>
+      <a href="#jump">Ditch Jumper</a>
       <a href="#polder-escape">Polder Escape</a>
       <a href="#roll-and-steal">Roll &amp; Steal</a>
     </nav>
@@ -115,7 +118,7 @@
 <main class="wrap">
   <div class="intro">
     <h1>Spooky Dutch nights &amp; <span>egg heists.</span></h1>
-    <p>Play Polder Dash right here in your browser, then grab your friends for our Roblox games. Everything is free.</p>
+    <p>Play Polder Dash and Ditch Jumper right here in your browser, then grab your friends for our Roblox games. Everything is free.</p>
   </div>
 
   <section id="dash" aria-labelledby="dash-title">
@@ -134,6 +137,22 @@
           <li>🏆 Beat your best</li>
         </ul>
         <a class="btn play" href="dash/">▶ Play Polder Dash</a>
+      </div>
+    </article>
+    <article class="card dash jump" id="jump">
+      <div class="shot">
+        <img src="assets/jump_shot.jpg" alt="Ditch Jumper in 3D: a farmer in clogs pole vaults over a Dutch ditch at sunset, reaching for a golden clog, with windmills, cows and tulip fields behind him" width="540" height="912" loading="lazy">
+        <span class="badge">New · 3D</span>
+      </div>
+      <div class="body">
+        <h2 id="jump-title">DITCH <span>JUMPER</span></h2>
+        <p>Pole vault over Dutch ditches like a real Frisian farmer. Hold to run, let go to jump. Hit the yellow strip for a perfect jump, grab golden clogs, and watch out for wind and mud. Fall short? Splash. The ducks will laugh.</p>
+        <ul class="facts">
+          <li>👆 One button</li>
+          <li>📱 Phone &amp; PC</li>
+          <li>🏆 Daily high scores</li>
+        </ul>
+        <a class="btn play" href="jump/">▶ Play Ditch Jumper</a>
       </div>
     </article>
   </section>
