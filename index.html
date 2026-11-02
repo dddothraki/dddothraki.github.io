@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>DDD Games: Polder Dash, Ditch Jumper, Polder Escape, Roll &amp; Steal an Egg</title>
-<meta name="description" content="Play Polder Dash and Ditch Jumper in your browser, and our Roblox games Polder Escape (co-op horror) and Roll & Steal an Egg on EggMountain. All free.">
+<title>DDD Games: Polder Dash, Ditch Jumper, Stampede, Polder Escape, Roll &amp; Steal an Egg</title>
+<meta name="description" content="Play Polder Dash, Ditch Jumper and Stampede in your browser, and our Roblox games Polder Escape (co-op horror) and Roll & Steal an Egg on EggMountain. All free.">
 <meta name="theme-color" content="#070b10">
 <meta property="og:title" content="DDD Games: play Polder Dash and Ditch Jumper now">
 <meta property="og:description" content="A haunted runner and a ditch-jumping game in your browser, plus our Roblox games Polder Escape and Roll & Steal an Egg. All free.">
@@ -128,9 +128,10 @@
     #play > article[data-g="dash"] { order: 2; }
     .board[data-game="dash"] { order: 3; margin-bottom: 30px; }
     #play > article[data-g="jump"] { order: 4; }
-    .board[data-game="jump"] { order: 5; margin-bottom: 10px; }
+    .board[data-game="jump"] { order: 5; margin-bottom: 30px; }
+    #play > article[data-g="stampede"] { order: 6; margin-bottom: 10px; }
     #scores > .label { display: none; }
-    main.wrap > section[aria-labelledby="roblox-title"] { order: 6; }
+    main.wrap > section[aria-labelledby="roblox-title"] { order: 7; }
     .jump .shot img { object-position: center 42%; }
     .top li { gap: 7px; padding: 7px 6px; font-size: 15px; }
     .top .mt { font-size: 12px; }
@@ -154,6 +155,7 @@
     <nav aria-label="Games">
       <a href="#dash">Polder Dash</a>
       <a href="#jump">Ditch Jumper</a>
+      <a href="#stampede">Stampede</a>
       <a href="#top-scores">High scores</a>
       <a href="#polder-escape">Polder Escape</a>
       <a href="#roll-and-steal">Roll &amp; Steal</a>
@@ -164,7 +166,7 @@
 <main class="wrap">
   <div class="intro">
     <h1>Spooky Dutch nights &amp; <span>egg heists.</span></h1>
-    <p>Play Polder Dash and Ditch Jumper right here in your browser, then grab your friends for our Roblox games. Everything is free.</p>
+    <p>Play Polder Dash, Ditch Jumper and Stampede right here in your browser, then grab your friends for our Roblox games. Everything is free.</p>
   </div>
 
   <section id="play" aria-labelledby="dash-title">
@@ -199,6 +201,22 @@
           <li>🏆 Daily high scores</li>
         </ul>
         <a class="btn play" href="jump/">▶ Play Ditch Jumper</a>
+      </div>
+    </article>
+    <article class="card dash" id="stampede" data-g="stampede">
+      <div class="shot">
+        <img src="assets/stampede_shot.jpg" alt="Stampede in 3D: a farmer rides a golden dragon down a dirt lane between fences, with duck signs and hay bales ahead" width="540" height="912" loading="lazy">
+        <span class="badge">New · 3D</span>
+      </div>
+      <div class="body">
+        <h2 id="stampede-title">STAM<span>PEDE</span></h2>
+        <p>Ride animals down a farm lane that gets faster and harder the further you go. Start on a horse, collect coins and unlock the ostrich, stag, wolf, bull, eagle and dragon, each with its own power and cool styles.</p>
+        <ul class="facts">
+          <li>🐉 7 animals to ride</li>
+          <li>📱 Phone &amp; PC</li>
+          <li>💎 Unlock styles</li>
+        </ul>
+        <a class="btn play" href="stampede/">▶ Play Stampede</a>
       </div>
     </article>
   </section>
