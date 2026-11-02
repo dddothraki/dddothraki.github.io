@@ -868,7 +868,7 @@
     $('oDitches').textContent = ditchesDone;
     $('oScore').textContent = score;
     $('newBest').classList.toggle('hidden', !(isBest && score > 0));
-    $('oBest').textContent = best ? 'Your best: ' + best.score + ' points · ' + best.ditches + ' ditches' : '';
+    $('oBest').textContent = best ? bestLine(best) : '';
     $('hint').textContent = tipFor(killer);
     $('shareBox').classList.add('hidden');
     $('hud').classList.add('hidden');
@@ -876,6 +876,7 @@
     if (window.JumpBoard) window.JumpBoard.runEnd({ score: score, ditches: ditchesDone, bonus: bonus, seconds: (Date.now() - runStartT) / 1000 });
     $('againBtn').focus();
   }
+  function bestLine(b) { return 'Your best: ' + b.score + (b.score === 1 ? ' point · ' : ' points · ') + b.ditches + (b.ditches === 1 ? ' ditch' : ' ditches'); }
   function tipFor(k) {
     if (k === 'overrun') return 'Tip: let go just before the white board.';
     if (k === 'early') return 'Tip: keep holding longer. More speed = longer jump.';
@@ -884,7 +885,7 @@
   }
   function titleBest() {
     var b = store.get('best', null);
-    $('bestTitle').textContent = b && b.score > 0 ? 'Your best: ' + b.score + ' points · ' + b.ditches + ' ditches' : '';
+    $('bestTitle').textContent = b && b.score > 0 ? bestLine(b) : '';
   }
   function share() {
     var b = ditchesDone;

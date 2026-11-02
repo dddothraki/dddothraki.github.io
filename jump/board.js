@@ -197,7 +197,7 @@
         if (api.open) load(tab);
       } else if (j.error === 'taken') {
         showForm(true, true);
-        setMsg(code ? "That code doesn't match this name." : 'This name is taken. Is it yours? Enter your name code.', 'lbbad');
+        setMsg(code ? "That code doesn't match this name." : 'This name is taken. Is it yours? Enter your name code. You find it under 🏆 High scores, on the phone or browser where you played before. Not yours? Pick another name.', 'lbbad');
       } else if (j.error === 'name') {
         showForm(true, !!code);
         setMsg('Pick another name: 3–12 letters or numbers, nothing rude.', 'lbbad');
@@ -294,7 +294,7 @@
     }
     draw(period);
   }
-  function bestLine(sb) { return 'Your best: ' + sb.score + ' points · ' + sb.ditches + (sb.ditches === 1 ? ' ditch' : ' ditches'); }
+  function bestLine(sb) { return 'Your best: ' + sb.score + (sb.score === 1 ? ' point · ' : ' points · ') + sb.ditches + (sb.ditches === 1 ? ' ditch' : ' ditches'); }
   function openBoard() {
     backTo = ['title', 'over'].filter(function (id) { return !$(id).classList.contains('hidden'); });
     backTo.forEach(function (id) { $(id).classList.add('hidden'); });
@@ -368,7 +368,7 @@
       if (!name) { showForm(true); setMsg('Put your score on the high scores!'); return; }
       showForm(false);
       if (r.score > p.dayBest || r.score > p.weekBest || r.score > p.allBest) post(name);
-      else setMsg('Your best today: ' + p.dayBest + ' points');
+      else setMsg('Your best today: ' + p.dayBest + (p.dayBest === 1 ? ' point' : ' points'));
   }
   window.JumpBoard = api;
 

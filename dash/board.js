@@ -178,7 +178,7 @@
         if (api.open) load(tab);
       } else if (j.error === 'taken') {
         showForm(true, true);
-        setMsg(code ? "That code doesn't match this name." : 'This name is taken. Is it yours? Enter your name code.', 'lbbad');
+        setMsg(code ? "That code doesn't match this name." : 'This name is taken. Is it yours? Enter your name code. You find it under 🏆 High scores, on the phone or browser where you played before. Not yours? Pick another name.', 'lbbad');
       } else if (j.error === 'name') {
         showForm(true, !!code);
         setMsg('Pick another name: 3–12 letters or numbers, nothing rude.', 'lbbad');
