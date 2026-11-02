@@ -1,0 +1,4 @@
+Rigged Eastern Dragon (models/eastern.glb)
+Made by gilecheverria, Blend Swap blend #80710: http://www.blendswap.com/blends/view/80710
+License: Creative Commons Attribution 3.0 (https://creativecommons.org/licenses/by/3.0/)
+Changed for Stampede: smoothed, simple colors (the game repaints them per style), exported to glTF; the movement is made in code.

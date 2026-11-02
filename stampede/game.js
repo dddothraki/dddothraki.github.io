@@ -80,6 +80,13 @@ const STYLES = {
     { key: 'gold', name: 'Golden Sun Dragon', gems: 7, sw: '#f2c14e', model: 'dragon_gold', rig: { tilt: 0.85, lift: 0.75, hover: 0.45, seatAt: 'back', wingOpen: 1.0, legs: false, flap: 1.6 }, trail: 0xffd34d, glowFx: true },
     { key: 'galaxy', name: 'Galaxy Dragon', gems: 9, sw: '#4b3aa8', model: 'dragon_galaxy', rig: { headUp: 0.25, tilt: 0.6, lift: 0.75, hover: 0.45, seatAt: 'back', wingOpen: 1.0, legs: false, flap: 1.6 }, trail: 0xb08cff, glowFx: true },
     { key: 'dream', name: 'Dream Dragon', gems: 10, sw: '#f0a8e0', model: 'dragon_dream', rig: { headUp: 0.25, tilt: 0.6, lift: 0.75, hover: 0.45, seatAt: 'back', wingOpen: 1.0, legs: false, flap: 1.6 }, trail: 0xffc0f0, glowFx: true },
+    // eastern dragons: one long snake body that waves through the air (bones moved in code)
+    { key: 'jade', name: 'Jade Eastern Dragon', gems: 12, sw: '#2f9a4a', serpent: true, model: 'eastern', credit: 'Model by gilecheverria (CC-BY)', rig: { length: 9.5, ride: 1.7, seat: 0.24, spread: 0.55, legs: false, legFold: 1.1 },
+      colors: { DragonSkinMat: 0x2f8f3a, BellyMat: 0xf0d27a, HornsMat: 0xf2c14e, WhiskersMat: 0x1a1a1a, EyesMat: 0xff3010 }, glow: { EyesMat: 0xff2000 } },
+    { key: 'imperial', name: 'Imperial Red Dragon', gems: 14, sw: '#c0201a', serpent: true, model: 'eastern', credit: 'Model by gilecheverria (CC-BY)', rig: { length: 9.5, ride: 1.7, seat: 0.24, spread: 0.55, legs: false, legFold: 1.1 },
+      colors: { DragonSkinMat: 0xc0201a, BellyMat: 0xffd34d, HornsMat: 0xffd34d, WhiskersMat: 0xffe9a8, EyesMat: 0xffe066 }, glow: { EyesMat: 0xffc000, HornsMat: 0x4a3000 }, trail: 0xffd34d, glowFx: true },
+    { key: 'storm', name: 'Storm Eastern Dragon', gems: 16, sw: '#2a6fd8', serpent: true, model: 'eastern', credit: 'Model by gilecheverria (CC-BY)', rig: { length: 9.5, ride: 1.7, seat: 0.24, spread: 0.55, legs: false, legFold: 1.1 },
+      colors: { DragonSkinMat: 0x2a6fd8, BellyMat: 0xe8f6ff, HornsMat: 0xffffff, WhiskersMat: 0xdff2ff, EyesMat: 0x9fe8ff }, glow: { DragonSkinMat: 0x061a3a, EyesMat: 0x7fdcff, HornsMat: 0x2a5a80 }, trail: 0x9fdcff, glowFx: true },
   ],
 };
 
@@ -320,7 +327,8 @@ function loadModel(name, done) {
     for (const clip of gltf.animations) { const a = mixer.clipAction(clip); a.play(); a.timeScale = 0; a.setEffectiveWeight(0); acts[clip.name] = a; }
     const cfg = Object.values(ANIMALS).find(x => x.model === name) || {};
     m.gltf = gltf; m.mixer = mixer; m.acts = acts; m.seat = gltf.scene.getObjectByName(cfg.seatBone || 'Torso2');
-    if (!gltf.animations.length) m.rig = rigParts(gltf.scene);
+    if (name === 'eastern') m.snake = snakeRig(gltf.scene);
+    else if (!gltf.animations.length) m.rig = rigParts(gltf.scene);
     m.state = 'ready'; m.wait.forEach(f => f()); m.wait = [];
   }, undefined, () => { m.state = 'failed'; m.wait.forEach(f => f()); m.wait = []; });
 }
@@ -421,6 +429,65 @@ function animateParts(a, dt) {
     r.seatMark.updateWorldMatrix(true, false);
     r.seatMark.getWorldPosition(_v); a.body.worldToLocal(_v);
     rider.g.position.set(_v.x, _v.y + cfg.seat, _v.z + cfg.seatZ);
+  }
+}
+// eastern dragon: the spine is a chain of bones from the tail tip to the head. Each bone bends a little,
+// with a wave that runs from the head to the tail, so the body swims through the air like a snake.
+const SPINE = ['Tail_4_001', 'Tail_4', 'Tail_3_001', 'Tail_3', 'Tail_2_001', 'Tail_2', 'Tail_1', 'Back_1', 'Back_2', 'Back_3', 'Back_4', 'Back_5', 'Back_6',
+  'Neck_1', 'Neck_2', 'Neck_3', 'Neck_4', 'Neck_Final', 'Head'];
+function snakeRig(root) {
+  root.updateMatrixWorld(true);
+  const rq = root.getWorldQuaternion(new THREE.Quaternion()).invert(), q = new THREE.Quaternion();
+  // a turn around a model axis, seen from inside the bone (so the bones' own axes don't matter)
+  const bone = n => {
+    const b = root.getObjectByName(n); if (!b) return null;
+    const w = rq.clone().multiply(b.getWorldQuaternion(q)).invert();
+    return { b, q0: b.quaternion.clone(), side: new THREE.Vector3(1, 0, 0).applyQuaternion(w), up: new THREE.Vector3(0, 1, 0).applyQuaternion(w) };
+  };
+  const spine = SPINE.map(bone).filter(Boolean);
+  // tail bones point backwards: bending them the same way needs the other sign
+  spine.forEach(s => { s.tail = s.b.name.startsWith('Tail'); });
+  const legs = ['Upper_Arm_L', 'Upper_Arm_R', 'Upper_Leg_L', 'Upper_Leg_R'].map(bone).filter(Boolean);
+  const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3());
+  return { spine, legs, jaw: bone('Jaw'), seat: root.getObjectByName('Back_5'), len: Math.max(size.x, size.y, size.z), minY: box.min.y };
+}
+function makeSerpent(key, style) {
+  const a = Object.assign({}, ANIMALS[key], style.rig || {}), m = models[style.model], r = m.snake;
+  const g = new THREE.Group(), body = group(0, 0, 0, g);
+  const inner = m.gltf.scene, s = a.length / r.len;
+  for (const p of r.spine.concat(r.legs, r.jaw ? [r.jaw] : [])) p.b.quaternion.copy(p.q0);
+  inner.scale.setScalar(s); inner.rotation.set(0, Math.PI, 0); inner.position.set(0, 0, 0);   // the model looks along +z; the game runs to -z
+  body.add(inner);
+  paintModel(inner, style);
+  return { g, body, neck: null, head: null, tail: null, legs: [], kind: 'serpent', model: m, inner, rig: r, cycle: 0, spread: a.spread, cfg: a };
+}
+const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
+function animateSerpent(a, dt) {
+  const cfg = a.cfg, r = a.rig, flyHigh = A.ability === 'fly' && sprint > 0;
+  const running = !dead || deadT < 0.15;
+  a.flapT = (a.flapT || 0) + dt * (running ? 1 : 0.15) * (flyHigh ? 1.7 : 1);
+  if (running) a.cycle += dt * Math.max(v, st.mode === 'run' ? 0 : 7) / 3.4;
+  const T = a.flapT * 3.2, n = r.spine.length;
+  r.spine.forEach((p, i) => {
+    const k = i / (n - 1);                       // 0 = tail tip, 1 = head
+    const amp = 0.04 + (1 - k) * 0.1;             // the tail waves more than the neck
+    const sgn = p.tail ? -1 : 1;                  // tail bones point backwards
+    const up = Math.sin(T + k * 7) * amp * sgn;
+    const side = Math.sin(T * 0.6 + k * 5 + 1) * amp * 0.6 * sgn;
+    p.b.quaternion.copy(p.q0).multiply(_q1.setFromAxisAngle(p.side, up)).multiply(_q2.setFromAxisAngle(p.up, side));
+  });
+  // little legs paddle, and fold back when it goes fast
+  r.legs.forEach((p, i) => p.b.quaternion.copy(p.q0).multiply(_q1.setFromAxisAngle(p.side, cfg.legFold * ((flyHigh ? 1.25 : 1) + Math.sin(T * 1.5 + i * 1.7) * 0.25))));
+  if (r.jaw) r.jaw.b.quaternion.copy(r.jaw.q0).multiply(_q1.setFromAxisAngle(r.jaw.side, flyHigh ? 0.35 : 0.06 + Math.sin(T * 0.5) * 0.04));
+  // keep the seat where the rider is: the body waves around him
+  a.inner.position.set(0, 0, 0);
+  a.body.updateMatrixWorld(true);
+  const now = a.body.worldToLocal(r.seat.getWorldPosition(_v));
+  a.inner.position.set(-now.x, cfg.ride - now.y, -now.z);
+  if (rider.g.parent === a.body) rider.g.position.set(0, cfg.ride + cfg.seat, cfg.seatZ || 0);
+  if (flyHigh && r.jaw && Math.random() < 0.6) {
+    r.jaw.b.getWorldPosition(_v);
+    puff(_v.x + (Math.random() - 0.5) * 0.3, _v.y, _v.z - 0.4, 0xff7a1a, (Math.random() - 0.5) * 2, 0.5, -6, 0.4, 0.8, true);
   }
 }
 function paintModel(root, style) {
@@ -635,7 +702,8 @@ function setAnimal(key, sk) {
   animalKey = key; A = ANIMALS[key]; styleKey = sk || styleKey;
   const style = styleOf(key, styleKey);
   const mn = modelOf(key, styleKey), m = mn && models[mn];
-  if (A.parts && m && m.state === 'ready') animal = makePartsAnimal(key, style);
+  if (style.serpent && m && m.state === 'ready') animal = makeSerpent(key, style);
+  else if (A.parts && m && m.state === 'ready') animal = makePartsAnimal(key, style);
   else if (A.model && m && m.state === 'ready') animal = makeModelAnimal(key, style);
   else if (key === 'ostrich') animal = makeOstrich(style);
   else {
@@ -651,6 +719,7 @@ function setAnimal(key, sk) {
   rider.saddle.visible = animal.kind === 'model';
   if (animal.kind === 'model') { animateModel(animal, 0); }
   if (animal.kind === 'parts') { animateParts(animal, 0); }
+  if (animal.kind === 'serpent') { animateSerpent(animal, 0); }
 }
 
 // hints for new players: shown once per obstacle type per run, only while best < 1500 m
@@ -856,18 +925,20 @@ function animateModel(a, dt) {
 }
 function animateAnimal(dt) {
   const a = animal; if (!a) return;
-  if (a.kind === 'parts') {
+  if (a.kind === 'parts' || a.kind === 'serpent') {
     const air = py > 0.001, duck = slide > 0 && !air;
     a.body.scale.y += ((duck ? 0.7 : 1) - a.body.scale.y) * Math.min(1, dt * 18);
     a.g.position.set(px, py + (a.cfg.hover || 0), 0);
-    a.g.rotation.y = (px - LANES[lane]) * 0.18;
+    const long = a.kind === 'serpent';
+    a.g.rotation.y = (px - LANES[lane]) * (long ? 0.07 : 0.18);
     a.g.rotation.z = (px - LANES[lane]) * (a.cfg.legs ? 0.04 : 0.14);
     a.g.rotation.x = 0;
-    if (dead && dead !== 'ditch') { a.g.rotation.x = Math.min(1.2, deadT * 4); a.g.position.y = Math.max(0, py + (a.cfg.hover || 0) - deadT * 2); }
-    if (dead === 'ditch') { a.g.position.y = -Math.min(1.1, deadT * 1.6); a.g.rotation.x = Math.min(0.5, deadT); }
-    animateParts(a, dt);
+    if (long && dead) { a.g.rotation.x = Math.min(0.1, deadT * 0.4); a.g.position.y = Math.max(dead === 'ditch' ? -1.5 : -1.1, py - deadT * 3); }   // a long body falls flat
+    else if (dead && dead !== 'ditch') { a.g.rotation.x = Math.min(1.2, deadT * 4); a.g.position.y = Math.max(0, py + (a.cfg.hover || 0) - deadT * 2); }
+    else if (dead === 'ditch') { a.g.position.y = -Math.min(1.1, deadT * 1.6); a.g.rotation.x = Math.min(0.5, deadT); }
+    if (a.kind === 'serpent') animateSerpent(a, dt); else animateParts(a, dt);
     if (!dead) { rider.chest.rotation.x = -(duck ? 0.9 : sprint > 0 ? 0.6 : 0.25) - (air ? 0.15 : 0); rider.chest.position.y = 0.25; rider.arms.forEach((s, i) => { s.rotation.x = 1.0 + Math.sin(a.cycle * 12 + i) * 0.1; }); }
-    if (A.ability === 'fly' && sprint > 0 && Math.random() < 0.6) puff(px + (Math.random() - 0.5) * 0.4, py + 1.4, -2.2, 0xff7a1a, (Math.random() - 0.5) * 2, 0.5, -6, 0.4, 0.8, true);
+    if (!long && A.ability === 'fly' && sprint > 0 && Math.random() < 0.6) puff(px + (Math.random() - 0.5) * 0.4, py + 1.4, -2.2, 0xff7a1a, (Math.random() - 0.5) * 2, 0.5, -6, 0.4, 0.8, true);
     if (!air && !dead && a.cfg.legs && Math.random() < dt * v * 0.5) puff(px + (Math.random() - 0.5) * 0.7, 0.15, 1.0, 0xd8c08a, (Math.random() - 0.5), 0.8, 3, 0.5, 0.45, false);
     glowPuffs(a, dt);
     return;
@@ -928,7 +999,7 @@ function glowPuffs(a, dt) {
 // menu: look at the animal from the front-side, so you can see its style (it sits in the gap between title and stable)
 function menuCamera(dt, aspect, portrait) {
   // keep about 5.5 m of width in view, also on a narrow phone
-  const fov = 40, halfW = 2.4, r = Math.max(6.5, halfW / (Math.tan(fov * Math.PI / 360) * aspect));
+  const fov = 40, halfW = animal && animal.kind === 'serpent' ? 5.4 : 2.4, r = Math.max(6.5, halfW / (Math.tan(fov * Math.PI / 360) * aspect));
   const a = 1.05 + Math.sin(t * 0.25) * 0.12;
   camera.position.set(Math.sin(a) * r, 1.4 + r * 0.12, -Math.cos(a) * r);
   if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
@@ -1008,7 +1079,8 @@ function menuStats() {
   const a = ANIMALS[animalKey];
   $('info').textContent = a.info;
   const mnow = modelOf(animalKey, styleKey), noModel = mnow && models[mnow] && models[mnow].state === 'failed';
-  $('info').textContent = noModel ? 'Could not load this look. Check your internet, or pick another one.' : a.info;
+  const credit = styleOf(animalKey, styleKey).credit;
+  $('info').textContent = noModel ? 'Could not load this look. Check your internet, or pick another one.' : a.info + (credit ? ' · ' + credit : '');
   $('styles').innerHTML = STYLES[animalKey].map(x => '<button class="style' + (x.key === styleKey ? ' on' : '') + '" data-s="' + x.key + '"><i style="background:' + x.sw + '"></i>' + x.name + (hasStyle(animalKey, x.key) ? '' : ' <small>💎 ' + x.gems + '</small>') + '</button>').join('');
   // the big button
   const sx = styleOf(animalKey, styleKey);
