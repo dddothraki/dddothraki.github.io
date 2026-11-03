@@ -260,25 +260,35 @@ function prepLook() {
   const cx = cv.getContext('2d', { willReadFrequently: true });
   cx.drawImage(img, 0, 0);
   const base = cx.getImageData(0, 0, W, H);
-  // laarzen: de driehoekjes onderaan, in uv-ruimte getekend (met een randje tegen naden)
+  // laarzen: driehoekjes in het onderlichaam die neutraal grijs zijn (de broek is warmer van kleur).
+  // Op hoogte alleen gaat niet: in de renhouding hangt het achterste been hoog. In uv-ruimte getekend, met een randje tegen naden.
+  const d = base.data;
+  const chromaAt = (u, v) => { const q = (Math.min(H - 1, Math.max(0, Math.floor(v * H))) * W + Math.min(W - 1, Math.max(0, Math.floor(u * W)))) * 4; return (Math.max(d[q], d[q + 1], d[q + 2]) - Math.min(d[q], d[q + 1], d[q + 2])) / 255; };
   const mc = document.createElement('canvas'); mc.width = W; mc.height = H;
   const mx = mc.getContext('2d', { willReadFrequently: true });
   mx.fillStyle = mx.strokeStyle = '#fff'; mx.lineWidth = 3; mx.lineJoin = 'round';
   const pos = m.geo.attributes.position.array, uv = m.geo.attributes.uv.array, idx = m.geo.index.array;
   for (let i = 0; i < idx.length; i += 3) {
     const a = idx[i], b = idx[i + 1], c = idx[i + 2];
-    if ((pos[a * 3 + 1] + pos[b * 3 + 1] + pos[c * 3 + 1]) / 3 >= 0.5) continue;
+    const y = (pos[a * 3 + 1] + pos[b * 3 + 1] + pos[c * 3 + 1]) / 3;
+    if (y >= 1.05) continue;
+    if (y >= 0.5) {
+      const cu = (uv[a * 2] + uv[b * 2] + uv[c * 2]) / 3, cvv = (uv[a * 2 + 1] + uv[b * 2 + 1] + uv[c * 2 + 1]) / 3;
+      let ch = chromaAt(cu, cvv);
+      for (const k of [a, b, c]) ch += chromaAt((cu + uv[k * 2]) / 2, (cvv + uv[k * 2 + 1]) / 2);
+      if (ch / 4 >= 0.05) continue;
+    }
     mx.beginPath(); mx.moveTo(uv[a * 2] * W, uv[a * 2 + 1] * H); mx.lineTo(uv[b * 2] * W, uv[b * 2 + 1] * H); mx.lineTo(uv[c * 2] * W, uv[c * 2 + 1] * H);
     mx.closePath(); mx.fill(); mx.stroke();
   }
-  const boots = mx.getImageData(0, 0, W, H).data, d = base.data;
+  const boots = mx.getImageData(0, 0, W, H).data;
   // per pixel: 0 = laten, 1 = jas, 2 = laars; en de helderheid, zodat plooien en schaduw blijven
   const kind = new Uint8Array(W * H), lum = new Float32Array(W * H);
   for (let q = 0; q < W * H; q++) {
     const r = d[q * 4] / 255, g = d[q * 4 + 1] / 255, bl = d[q * 4 + 2] / 255;
     const hi = Math.max(r, g, bl), lo = Math.min(r, g, bl), l = (hi + lo) / 2, ch = hi - lo;
     lum[q] = l;
-    if (boots[q * 4] > 127) { kind[q] = 2; continue; }
+    if (boots[q * 4] > 127 && ch < 0.12) { kind[q] = 2; continue; }
     if (ch < 0.06) continue;
     const sat = ch / (1 - Math.abs(2 * l - 1) + 1e-6);
     let h = hi === r ? ((g - bl) / ch) % 6 : hi === g ? (bl - r) / ch + 2 : (r - g) / ch + 4;
@@ -288,7 +298,32 @@ function prepLook() {
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace; tex.flipY = false; tex.anisotropy = 4;
   Object.assign(look3, { cx, base, kind, lum, W, H, tex, ready: true });
-  m.mat.map = tex; m.mat.needsUpdate = true;
+  m.mat.map = tex;
+  // benen laten lopen: het model is één stuk, dus de onderste hoekpunten (niet de jas) draaien in de shader om de heup,
+  // het linker- en rechterbeen tegengesteld. legw = hoeveel een hoekpunt meedraait (0 bij de heup, 1 vanaf de knie).
+  const pa = m.geo.attributes.position, legw = new Float32Array(pa.count);
+  for (let v = 0; v < pa.count; v++) {
+    const y = pa.getY(v);
+    if (y >= 1.0) continue;
+    const q = Math.min(H - 1, Math.max(0, Math.floor(uv[v * 2 + 1] * H))) * W + Math.min(W - 1, Math.max(0, Math.floor(uv[v * 2] * W)));
+    if (kind[q] === 1) continue; // jas loopt niet mee
+    const t = Math.min(1, (1.0 - y) / 0.35);
+    legw[v] = t * t * (3 - 2 * t);
+  }
+  m.geo.setAttribute('legw', new THREE.BufferAttribute(legw, 1));
+  const uLeg = { value: 0 };
+  look3.uLeg = uLeg;
+  m.mat.onBeforeCompile = sh => {
+    sh.uniforms.uLeg = uLeg;
+    sh.vertexShader = 'attribute float legw;\nuniform float uLeg;\n' + sh.vertexShader
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+  float legA = uLeg * legw * (position.x < 0.0 ? 1.0 : -1.0), legC = cos(legA), legS = sin(legA);
+  objectNormal = vec3(objectNormal.x, objectNormal.y * legC - objectNormal.z * legS, objectNormal.y * legS + objectNormal.z * legC);`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+  { vec3 legQ = transformed - vec3(0.0, 1.0, 0.0);
+    transformed = vec3(legQ.x, legQ.y * legC - legQ.z * legS, legQ.y * legS + legQ.z * legC) + vec3(0.0, 1.0, 0.0); }`);
+  };
+  m.mat.needsUpdate = true;
 }
 function paintFarmer(coat, boots) {
   const { cx, base, kind, lum, W, H, tex } = look3;
@@ -351,16 +386,18 @@ function makeAccessories(root) {
     add(g, new THREE.SphereGeometry(0.07, 10, 8), std(0xe8413a, { emissive: 0x6a0000, roughness: 0.2 }), X, 3.42, Z - 0.48);
     for (const sx of [-1, 1]) add(g, new THREE.SphereGeometry(0.05, 10, 8), std(0x5ab4ee, { emissive: 0x0a3050, roughness: 0.2 }), X + sx * 0.34, 3.42, Z - 0.34);
   });
+  // stok en hooivork liggen horizontaal in de hand, in het midden vastgehouden, met de punt naar voren (-z) en iets omhoog
+  const held = (g, len) => { g.position.set(HX, HY, HZ); g.rotation.x = -Math.PI / 2 + 0.12; return len / 2; };
   grp('cane', hands, g => {
-    const wood = std(0x6a4220);
-    add(g, cyl(0.05, 1.86, 8), wood, HX, HY - 0.93, HZ);
-    const hook = add(g, new THREE.TorusGeometry(0.14, 0.05, 6, 12, Math.PI), wood, HX + 0.14, HY, HZ);
+    const wood = std(0x6a4220), h = held(g, 1.9);
+    add(g, cyl(0.05, 1.9, 8), wood, 0, 0, 0);
+    const hook = add(g, new THREE.TorusGeometry(0.14, 0.05, 6, 12, Math.PI), wood, 0.14, -h, 0); hook.rotation.z = Math.PI; // handvat achteraan
   });
   grp('fork', hands, g => {
-    const wood = std(0x8a5a2b), metal = std(0xb0b6bc, { metalness: 0.7, roughness: 0.35 });
-    add(g, cyl(0.045, 3.1, 8), wood, HX, 1.85, HZ);
-    add(g, new THREE.BoxGeometry(0.46, 0.06, 0.06), metal, HX, 3.42, HZ);
-    for (const dx of [-0.19, 0, 0.19]) { add(g, cyl(0.025, 0.5, 6), metal, HX + dx, 3.68, HZ); add(g, new THREE.ConeGeometry(0.025, 0.08, 6), metal, HX + dx, 3.97, HZ); }
+    const wood = std(0x8a5a2b), metal = std(0xb0b6bc, { metalness: 0.7, roughness: 0.35 }), h = held(g, 2.8);
+    add(g, cyl(0.045, 2.8, 8), wood, 0, -0.25, 0);
+    add(g, new THREE.BoxGeometry(0.46, 0.06, 0.06), metal, 0, h - 0.25, 0);
+    for (const dx of [-0.19, 0, 0.19]) { add(g, cyl(0.025, 0.5, 6), metal, dx, h, 0); add(g, new THREE.ConeGeometry(0.025, 0.08, 6), metal, dx, h + 0.29, 0); }
   });
   return { hats, hands };
 }
@@ -1133,7 +1170,10 @@ function render(dt = 0) {
   // camera schuin achter de speler
   const shake = G.shake;
   applyLook();
-  if (window.DashLook && window.DashLook.shop) {
+  // benen: zwaaien bij het rennen (minder in de lucht), stil als hij valt; in de winkel rent hij op de plaats
+  const shopOn = !!(window.DashLook && window.DashLook.shop);
+  if (look3.uLeg) look3.uLeg.value = shopOn ? Math.sin(performance.now() / 110) * 0.5 : (mode === 'play' || mode === 'title') ? Math.sin(G.runPhase) * 0.5 * (1 - z) : 0;
+  if (shopOn) {
     // winkel: de boer draait rond en de camera kijkt van dichtbij; hij staat in de bovenste helft (onderin zit de winkel)
     player.rotation.set(0, performance.now() / 1400, 0);
     player.position.y = 0;
