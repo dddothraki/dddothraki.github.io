@@ -3,6 +3,7 @@
 // De spellogica rekent nog in "logische pixels" (zoals de platte versie); render() zet dat om
 // naar 3D: 1 baan = LANE_W px = 5 studs.
 import * as THREE from './vendor/three.module.min.js';
+import * as Race from './race.js?v=3'; // RACE tegen de computer: parcours, snelheid, spullen, tegenstander
 
 // Draait de platte versie al (bijvoorbeeld na de laad-time-out), dan niets doen.
 if (window.__dashClassic) throw new Error('classic active');
@@ -315,7 +316,13 @@ function prepLook() {
   m.geo.setAttribute('legw', new THREE.BufferAttribute(legw, 1));
   const uLeg = { value: 0 };
   look3.uLeg = uLeg;
-  m.mat.onBeforeCompile = sh => {
+  m.mat.onBeforeCompile = legPatch(uLeg);
+  m.mat.needsUpdate = true;
+}
+// Benen-shader. De tegenstander in RACE gebruikt dezelfde code met een eigen uLeg: three.js herkent de code
+// (zelfde tekst) en hoeft niets opnieuw te compileren, maar elke boer krijgt zijn eigen beenstand.
+function legPatch(uLeg) {
+  return sh => {
     sh.uniforms.uLeg = uLeg;
     sh.vertexShader = 'attribute float legw;\nuniform float uLeg;\n' + sh.vertexShader
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
@@ -325,10 +332,12 @@ function prepLook() {
   { vec3 legQ = transformed - vec3(0.0, 1.0, 0.0);
     transformed = vec3(legQ.x, legQ.y * legC - legQ.z * legS, legQ.y * legS + legQ.z * legC) + vec3(0.0, 1.0, 0.0); }`);
   };
-  m.mat.needsUpdate = true;
 }
-function paintFarmer(coat, boots) {
-  const { cx, base, kind, lum, W, H, tex } = look3;
+// de renhouding staat al gespreid: vooral naar elkaar toe zwaaien (tot 0,45) en maar een beetje verder open (0,2)
+const legSwing = ph => 0.12 + 0.33 * Math.sin(ph);
+// target = waar de jas/laarzen in getekend worden: de speler (look3) of de tegenstander in RACE
+function paintFarmer(coat, boots, target = look3) {
+  const { base, kind, lum, W, H } = look3, { cx, tex } = target;
   const out = cx.createImageData(W, H), o = out.data, d = base.data;
   const rgb = c => (c == null ? null : [(c >> 16) & 255, (c >> 8) & 255, c & 255]);
   const tc = rgb(coat), tb = rgb(boots);
@@ -436,10 +445,84 @@ function buildWorldModels() {
   for (let i = 0; i < 2; i++) { const t = makeModel('tower', 22, { shadow: false }); scene.add(t); towers.push(t); }
 }
 
+// ---------- tegenstander in RACE: een tweede boer met eigen kleding en eigen benen ----------
+let rival = null;
+const rivalV = { tgt: null, uLeg: { value: 0 }, acc: null, key: '', tag: null, tags: {} };
+function nameTex(text) {
+  if (rivalV.tags[text]) return rivalV.tags[text];
+  const t = canvasTex(256, 64, (g, w, h) => {
+    g.fillStyle = 'rgba(8,12,18,0.75)';
+    g.beginPath(); g.roundRect ? g.roundRect(4, 6, w - 8, h - 12, 16) : g.rect(4, 6, w - 8, h - 12); g.fill();
+    g.fillStyle = '#6cc3ff'; g.font = 'bold 34px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(text, w / 2, h / 2 + 1);
+  });
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return (rivalV.tags[text] = t);
+}
+function buildRival() {
+  let mat = models.farmer.mat;
+  if (look3.ready) {
+    const cv = document.createElement('canvas'); cv.width = look3.W; cv.height = look3.H;
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace; tex.flipY = false; tex.anisotropy = 4;
+    rivalV.tgt = { cx: cv.getContext('2d'), tex };
+    mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, metalness: 0 });
+    mat.onBeforeCompile = legPatch(rivalV.uLeg);
+  }
+  rival = makeModel('farmer', 2.8, { mat });
+  rival.visible = false;
+  scene.add(rival);
+  rivalV.acc = makeAccessories(rival.userData.mesh);
+  rival.traverse(n => { n.castShadow = false; }); // vlak naast de zaklamp gaf dat een grote zwarte vlek
+  const tag =new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTex(Race.LEVELS.rookie.name), transparent: true, depthWrite: false }));
+  tag.scale.set(2.6, 0.65, 1); tag.position.y = 4.3;
+  rival.add(tag); rivalV.tag = tag;
+  setRivalLook('rookie');
+}
+function setRivalLook(level) {
+  if (!rival) return;
+  const lk = Race.LEVELS[level].look, L = window.DashLook;
+  rivalV.tag.material.map = nameTex(Race.LEVELS[level].name);
+  if (rivalV.key === level) return;
+  rivalV.key = level;
+  if (rivalV.tgt && L) {
+    const c = L.COAT3[lk.coat], b = L.BOOTS3[lk.boots];
+    paintFarmer(c === undefined ? null : c, b === undefined ? null : b, rivalV.tgt);
+  }
+  for (const h in rivalV.acc.hats) rivalV.acc.hats[h].visible = h === lk.hat;
+  for (const h in rivalV.acc.hands) rivalV.acc.hands[h].visible = h === lk.hand;
+}
+
 // ---------- objecten van de spellogica naar 3D ----------
 const pools = {};
 const coinGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.13, 20);
 const coinMat = new THREE.MeshStandardMaterial({ color: 0xf2c14e, metalness: 0.8, roughness: 0.3, emissive: 0x5a3c00, emissiveIntensity: 0.8 });
+// RACE: kratten met een vraagteken (spullen) en de finish
+const crateTex = canvasTex(128, 128, (g, w) => {
+  g.fillStyle = '#8a5a2b'; g.fillRect(0, 0, w, w);
+  g.fillStyle = '#7a4e24'; for (let i = 0; i < 4; i++) g.fillRect(0, i * 32 + 14, w, 4);
+  g.strokeStyle = '#4a2c10'; g.lineWidth = 12; g.strokeRect(6, 6, w - 12, w - 12);
+  g.fillStyle = '#ffd23a'; g.font = 'bold 86px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.strokeStyle = '#3a2208'; g.lineWidth = 6; g.strokeText('?', w / 2, w / 2 + 6); g.fillText('?', w / 2, w / 2 + 6);
+});
+crateTex.wrapS = crateTex.wrapT = THREE.ClampToEdgeWrapping;
+const crateGeo = new THREE.BoxGeometry(1.15, 1.15, 1.15);
+const crateMat = new THREE.MeshStandardMaterial({ map: crateTex, roughness: 0.8, emissive: 0xffffff, emissiveMap: crateTex, emissiveIntensity: 0.3 });
+const finishTex = canvasTex(512, 96, (g, w, h) => {
+  for (let x = 0; x < w / 16; x++) for (let y = 0; y < h / 16; y++) { g.fillStyle = (x + y) % 2 ? '#111' : '#f4f1e8'; g.fillRect(x * 16, y * 16, 16, 16); }
+  g.fillStyle = '#c8302a'; g.fillRect(140, 14, 232, 68);
+  g.fillStyle = '#fff'; g.font = 'bold 54px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('FINISH', w / 2, h / 2 + 2);
+});
+finishTex.wrapS = finishTex.wrapT = THREE.ClampToEdgeWrapping;
+const checkerTex = canvasTex(64, 16, (g, w, h) => {
+  for (let x = 0; x < 8; x++) for (let y = 0; y < 2; y++) { g.fillStyle = (x + y) % 2 ? '#111' : '#e8e4d8'; g.fillRect(x * 8, y * 8, 8, 8); }
+}, [6, 1]);
+// finish: gedeelde vormen en materialen (worden nooit opgeruimd, dan hoeft de shader bij de finish niet opnieuw)
+const FIN_W = wx(ROAD_R) - wx(ROAD_L);
+const finBannerGeo = new THREE.PlaneGeometry(FIN_W + 1.6, 1.5), finPostGeo = new THREE.BoxGeometry(0.24, 5.5, 0.24), finLineGeo = new THREE.PlaneGeometry(FIN_W, 0.9);
+const finBannerMat = new THREE.MeshStandardMaterial({ map: finishTex, roughness: 0.9, emissive: 0xffffff, emissiveMap: finishTex, emissiveIntensity: 0.3, side: THREE.DoubleSide });
+const finLineMat = new THREE.MeshStandardMaterial({ map: checkerTex, roughness: 1 });
 const signCache = {};
 function signTex(label) {
   if (signCache[label]) return signCache[label];
@@ -497,6 +580,20 @@ function createView(o) {
       board.position.set(0, 1.9, 0.09); g.add(board);
       break;
     }
+    case 'crate': {
+      const box = new THREE.Mesh(crateGeo, crateMat); box.userData.keep = true; // gedeeld: niet opruimen
+      box.position.y = 0.95; box.castShadow = true; g.add(box); g.userData.spin = box;
+      const s = eye(0xffd66b, 2.1); s.material.opacity = 0.3; s.position.y = 1; g.add(s);
+      break;
+    }
+    case 'finish': {
+      const keep = m => { m.userData.keep = true; g.add(m); return m; };
+      keep(new THREE.Mesh(finBannerGeo, finBannerMat)).position.set(0, 4.7, 0);
+      for (const sx of [-1, 1]) { const p = keep(new THREE.Mesh(finPostGeo, postMat)); p.position.set(sx * (FIN_W / 2 + 0.8), 2.75, 0); p.castShadow = true; }
+      const line = keep(new THREE.Mesh(finLineGeo, finLineMat));
+      line.rotation.x = -Math.PI / 2; line.position.y = 0.03; line.receiveShadow = true;
+      break;
+    }
   }
   scene.add(g);
   return g;
@@ -506,7 +603,7 @@ function releaseView(o) {
   scene.remove(o.view);
   o.view.traverse(n => {
     if (n.isSprite) n.material.dispose();
-    if (n.isMesh && (n.geometry.type === 'PlaneGeometry' || n.geometry.type === 'BoxGeometry')) {
+    if (n.isMesh && !n.userData.keep && (n.geometry.type === 'PlaneGeometry' || n.geometry.type === 'BoxGeometry')) {
       n.geometry.dispose();
       if (n.material !== postMat) n.material.dispose(); // bordje; de textuur zelf blijft in signCache
     }
@@ -638,6 +735,13 @@ const Sound = (() => {
     buzz() { for (let i = 0; i < 4; i++) tone('square', 120, 118, 0.04, 0.08, i * 0.22); },
     creak() { tone('sawtooth', 75, 55, 0.12, 0.6); noise(200, 2, 0.1, 0.5); },
     ghost() { tone('sine', 520, 380, 0.05, 1.2); tone('sine', 523, 392, 0.04, 1.2, 0.05); },
+    // RACE
+    beep(hi) { tone('square', hi ? 880 : 440, hi ? 880 : 440, 0.07, hi ? 0.4 : 0.16); },
+    bump() { noise(180, 0.7, 0.4, 0.28, 0, 'lowpass'); tone('sine', 120, 55, 0.2, 0.3); },
+    crate() { noise(700, 1, 0.12, 0.12); [660, 990].forEach((f, i) => tone('triangle', f, f, 0.1, 0.14, i * 0.06)); },
+    turbo() { tone('sawtooth', 180, 720, 0.07, 0.55); noise(2400, 0.6, 0.1, 0.5); },
+    win() { [523, 659, 784, 1047].forEach((f, i) => tone('triangle', f, f, 0.14, 0.32, i * 0.12)); },
+    lose() { [392, 330, 262].forEach((f, i) => tone('triangle', f, f, 0.12, 0.35, i * 0.16)); },
     milestone() { tone('sine', 196, 196, 0.12, 1.4); tone('sine', 294, 294, 0.08, 1.4, 0.02); },
     death() {
       noise(200, 0.5, 0.5, 0.9, 0, 'lowpass');
@@ -661,6 +765,7 @@ function newGame() {
     loot: 0, coins: 0, objs: [], parts: [], spawnD: 520, nextSign: 100,
     time: 0, banners: [], nextMilestone: 0, blackT: rnd(4, 8), blackPhase: null, blackClock: 0, light: 1,
     shake: 0, flash: 0, dieT: 0, killer: '', hints: {}, runPhase: 0, beatT: 0, god: false, firstDark: true,
+    stunT: 0, graceT: 0, boostT: 0, mul: 1, hits: 0, race: null, // race = null: het gewone spel
   };
 }
 const meters = () => Math.floor(G.dist / PX_PER_M);
@@ -708,12 +813,14 @@ function spawnPattern(d) {
 }
 
 // ---------- besturing ----------
+// RACE: tijdens het aftellen en na de finish niet bewegen
+const raceHold = () => G.race && (G.race.count > 0 || G.race.finished);
 function move(dir) {
-  if (mode !== 'play' || paused) return;
+  if (mode !== 'play' || paused || raceHold()) return;
   G.lane = clamp(G.lane + dir, 0, 2);
 }
 function jump() {
-  if (mode !== 'play' || paused) return;
+  if (mode !== 'play' || paused || raceHold()) return;
   if (G.jt < 0) { G.jt = 0; Sound.jump(); }
   else if (G.jt > 0.45) G.jumpQueued = true;
 }
@@ -728,7 +835,7 @@ wrap.addEventListener('pointermove', e => {
   const th = 26;
   if (Math.abs(dx) > th && Math.abs(dx) > Math.abs(dy)) { move(dx > 0 ? 1 : -1); ptr.done = true; }
   else if (dy < -th && -dy > Math.abs(dx)) { jump(); ptr.done = true; }
-  else if (dy > th * 1.5) { ptr.done = true; }
+  else if (dy > th * 1.5) { ptr.done = true; useItem(); } // omlaag vegen: spullen gebruiken (RACE)
 });
 const endPtr = e => {
   if (!ptr || ptr.id !== e.pointerId) return;
@@ -741,21 +848,35 @@ wrap.addEventListener('pointerup', endPtr);
 wrap.addEventListener('pointercancel', endPtr);
 window.addEventListener('keydown', e => {
   if (window.DashBoard && window.DashBoard.open) return; // scorebord open
+  if (window.DashRaceBoard && window.DashRaceBoard.open) return; // race-scorebord open
   const c = e.code;
   if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(c)) e.preventDefault();
   if (e.repeat) return;
   if ((c === 'Space' || c === 'Enter') && e.target.closest && e.target.closest('a, button, textarea, input')) {
     if (mode === 'play' && !paused) { e.preventDefault(); e.target.blur(); jump(); }
+    // spatie werd hierboven tegengehouden: op de knoppen van RACE zelf klikken (Enter doet dat al)
+    else if (c === 'Space' && e.target.closest('#raceMenu, #raceOver, #raceBoard')) e.target.closest('button, a').click();
     return;
   }
+  if (!$('raceMenu').classList.contains('hidden')) {
+    if (c === 'Escape') closeRaceMenu();
+    else if (c === 'KeyM') toggleMute();
+    return;
+  }
+  if (mode === 'over' && G.race && c === 'Escape') { openRaceMenu(); return; }
   if (mode === 'title' && (c === 'Space' || c === 'Enter')) { start(); return; }
-  if (mode === 'over' && (c === 'Space' || c === 'Enter') && !$('over').classList.contains('wait')) { start(); return; }
+  if (mode === 'over' && (c === 'Space' || c === 'Enter')) {
+    if (G.race) { if (!$('raceOver').classList.contains('wait')) raceStart(G.race.level); }
+    else if (!$('over').classList.contains('wait')) start();
+    return;
+  }
   if (c === 'KeyM') { toggleMute(); return; }
   if (mode === 'play' && (c === 'Escape' || c === 'KeyP')) { setPaused(!paused); return; }
   if (paused && (c === 'Space' || c === 'Enter')) { setPaused(false); return; }
   if (c === 'ArrowLeft' || c === 'KeyA') move(-1);
   else if (c === 'ArrowRight' || c === 'KeyD') move(1);
   else if (c === 'ArrowUp' || c === 'KeyW' || c === 'Space') jump();
+  else if (c === 'ArrowDown' || c === 'KeyS') useItem();
 });
 
 // ---------- schermen ----------
@@ -768,9 +889,272 @@ function start() {
   if (window.DashBoard) window.DashBoard.runStart();
   mode = 'play';
   paused = false;
+  raceScreens(false);
   show('title', false); show('over', false); show('pause', false); show('hud', true);
   banner('RUN!', 'Swipe ← → to dodge · ↑ or tap to jump', 2.6);
 }
+
+// ---------- RACE (tegen de computer) ----------
+function raceScreens(on) {
+  show('raceMenu', false); show('raceOver', false);
+  show('raceBar', on); show('itemBtn', false);
+  lastHud = '';
+}
+// uitslagen en reeksen per niveau: raceboard.js (ook het race-scorebord); zonder dat bestand werkt RACE gewoon zonder cijfers
+const RB = window.DashRaceBoard || null;
+const raceRec = level => (RB ? RB.rec(level) : { best: 0, wins: 0, races: 0, cur: 0, streak: 0 });
+function fillLevels() {
+  const box = $('lvls'), focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.l : null;
+  box.textContent = '';
+  for (const k of Race.LEVEL_ORDER) {
+    const r = raceRec(k), b = document.createElement('button');
+    b.className = 'lvl' + (r.wins > 0 ? ' won' : '');
+    b.dataset.l = k;
+    const nm = document.createElement('b'); nm.textContent = Race.LEVELS[k].name;
+    const sm = document.createElement('small');
+    sm.textContent = r.races > 0 ? `🔥 Win streak ${r.cur}${r.streak > r.cur ? ' · longest ' + r.streak : ''}${r.best ? '\nFastest win ' + Race.fmtTime(r.best) : ''}` : 'Not raced yet';
+    b.append(nm, sm);
+    b.addEventListener('click', () => raceStart(k));
+    box.appendChild(b);
+    if (focused === k) b.focus();
+  }
+}
+function openRaceMenu() {
+  if (mode === 'loading' || !(mode === 'title' || mode === 'over')) return;
+  if (mode === 'over') { mode = 'title'; Sound.bed(false); newGame(); } // terug naar het rustige beeld achter het menu
+  show('title', false); show('over', false); show('raceOver', false);
+  fillLevels();
+  // reeksen van de server (ander apparaat): menu bijwerken als ze binnen zijn
+  if (RB) RB.syncStats(() => { if (!$('raceMenu').classList.contains('hidden')) fillLevels(); });
+  show('rmBoard', !!RB);
+  $('rmKeys').textContent = isTouch ? 'Swipe ↓ (or tap the item) to use it.' : 'Press ↓ or S to use it.';
+  show('raceMenu', true);
+  const first = $('lvls').querySelector('button'); if (first && !isTouch) first.focus();
+}
+// een race die stopt: één keer vastleggen (gewonnen, verloren of halverwege gestopt = verloren)
+function recordRace(R, onServer) {
+  if (R.recorded || !RB) return null;
+  R.recorded = true;
+  if (!R.finished) { RB.quit(R.level); return null; }
+  return RB.result({ level: R.level, won: R.won, time: R.finishT }, onServer);
+}
+function raceQuit() {
+  const R = G && G.race;
+  if (R && R.count <= 0) recordRace(R); // tijdens het aftellen stoppen telt niet
+}
+function closeRaceMenu() { show('raceMenu', false); toTitle(); }
+function raceStart(level) {
+  if (mode === 'loading' || !Race.LEVELS[level]) return;
+  Sound.init();
+  Sound.bed(true);
+  newGame();
+  const seed = (Math.random() * 4294967296) >>> 0;
+  const course = Race.buildCourse(seed, laneX);
+  const R = G.race = {
+    level, L: Race.LEVELS[level], seed, course, ci: 0, drops: [], nDrop: 0, item: null, items: 0,
+    count: 3, t: 0, finished: false, finishT: 0, endT: 0, won: false, cpuShown: false, toGo: [500, 100],
+  };
+  R.cpu = new Race.Cpu(level, course, seed, laneX, chance(0.5) ? 0 : 2);
+  R.env = {
+    drops: R.drops, other: G,
+    get noItems() { return R.finished; },
+    get time() { return G.time; }, // zelfde klok als de geesten in beeld
+    dropBale(c) { R.drops.push({ id: 'c' + (++R.nDrop), type: 'bale', lane: c.lane, x: laneX(c.lane), d: Race.dropSpot(c, G), by: 'cpu' }); },
+    sendGhost(c) {
+      if (R.finished || G.dist <= c.dist) return;
+      G.objs.push({ type: 'ghost', x: 180, d: G.dist + 620, ph: rnd(0, Math.PI * 2), sang: true, sent: true });
+      banner('👻 THE WHITE LADY!', `${R.L.name} sent her after you!`, 1.8);
+      Sound.ghost();
+    },
+    hit(c, res) {
+      const y = PY - (c.dist - G.dist);
+      if (y < PY - AHEAD || y > PY + 80) return; // niet in beeld
+      for (let i = 0; i < 10; i++) part(c.px + rnd(-10, 10), y, rnd(-70, 70), rnd(-40, 20), 0.5, res === 'smash' ? 0xd8b46a : 0x8a7656, 0.4, true, rnd(0.2, 1.2), rnd(2, 4));
+    },
+  };
+  G.speed = 0;
+  setRivalLook(level);
+  if (RB) RB.start(level); // token voor het scorebord (tijd ligt vóór de start)
+  mode = 'play';
+  paused = false;
+  raceScreens(true);
+  show('title', false); show('over', false); show('pause', false); show('hud', true);
+  banner('3', `vs ${R.L.name} · first to ${Race.RACE_M} m wins`, 1.0);
+  Sound.beep(false);
+}
+// elk beeld tijdens een race: aftellen, tegenstander, spullen, finish
+function raceTick(dt) {
+  const R = G.race, c = R.cpu;
+  if (R.count > 0) {
+    const was = Math.ceil(R.count);
+    R.count -= dt;
+    const now = Math.ceil(R.count);
+    if (now !== was) {
+      if (now > 0) { banner(String(now), `vs ${R.L.name} · first to ${Race.RACE_M} m wins`, 1.0); Sound.beep(false); }
+      else { banner('GO!', '', 0.9); Sound.beep(true); if (RB) RB.go(R.level); }
+    }
+  } else {
+    if (!R.finished) R.t += dt;
+    c.step(dt, R.env);
+    if (c.finished && !R.cpuShown && !R.finished) { R.cpuShown = true; banner(`${R.L.name} FINISHED`, 'Keep going!', 2); }
+    if (!R.finished && G.dist >= Race.FINISH_D) raceFinish();
+    if (R.finished) { R.endT += dt; if (R.endT > 1.8) { raceOver(); return; } }
+    const left = (Race.FINISH_D - G.dist) / PX_PER_M;
+    if (!R.finished && R.toGo.length && left <= R.toGo[0]) banner(`${R.toGo.shift()} m TO GO`, placeLine(), 1.6);
+  }
+  // het parcours en wat de computer liet vallen in beeld zetten
+  while (R.ci < R.course.length && R.course[R.ci].d < G.dist + AHEAD) spawnTpl(R.course[R.ci++]);
+  for (const o of R.drops) {
+    if (o.seen || o.by !== 'cpu' || o.d >= G.dist + AHEAD) continue; // (wat jij liet vallen staat al in beeld)
+    o.seen = true;
+    if (o.d > G.dist + 24) G.objs.push({ type: 'bale', lane: o.lane, x: o.x, d: o.d, drop: true }); // achter je: doet niets meer
+  }
+  // geest die jij op de computer af stuurde: ook laten zien als hij in beeld is (raakt jou niet)
+  for (const o of c.incoming) {
+    if (o.shown || o.d > G.dist + AHEAD || o.d < c.dist - 40 || G.dist > c.dist) continue;
+    o.shown = true;
+    G.objs.push({ type: 'ghost', x: 180, d: o.d, ph: o.ph, sang: true, ref: o });
+  }
+  // opruimen wat iedereen al voorbij is
+  if (R.drops.length && chance(dt * 2)) {
+    const behind = Math.min(G.dist, c.dist) - 300;
+    for (let i = R.drops.length - 1; i >= 0; i--) if (R.drops[i].d < behind) R.drops.splice(i, 1);
+  }
+  // turbo: vonken
+  if (G.boostT > 0 && chance(dt * 40)) part(G.px + rnd(-8, 8), PY + 6, rnd(-30, 30), rnd(40, 90), 0.4, 0xffd23a, 0.35, true, rnd(0.1, 0.8), rnd(1, 3));
+  if (c.boostT > 0 && chance(dt * 30)) { const y = PY - (c.dist - G.dist); if (y > PY - AHEAD && y < PY + 80) part(c.px + rnd(-8, 8), y + 6, rnd(-30, 30), rnd(40, 90), 0.4, 0xffd23a, 0.35, true, rnd(0.1, 0.8), rnd(1, 3)); }
+}
+function spawnTpl(t) {
+  const o = Object.assign({}, t);
+  if (o.type === 'wolf') Object.assign(o, { st: 'lurk', t: 0, x: 26, rip: 0 });
+  else if (o.type === 'crow') o.flare = 0;
+  else if (o.type === 'ghost') o.sang = false;
+  G.objs.push(o);
+}
+function placeLine() {
+  const R = G.race, c = R.cpu, gap = Math.round((c.dist - G.dist) / PX_PER_M);
+  if (c.finished) return `${R.L.name} is already there!`;
+  return gap > 0 ? `${R.L.name} is ${gap} m ahead` : gap < 0 ? `You lead by ${-gap} m` : 'Neck and neck!';
+}
+function pickCrate(o) {
+  const R = G.race;
+  for (let i = 0; i < 10; i++) part(o.x + rnd(-10, 10), o.y, rnd(-70, 70), rnd(-50, 20), 0.5, 0xc89a4a, 0.4, true, 1, rnd(2, 4));
+  if (!R || R.item || R.finished || R.crateG === o.g) { Sound.coin(); return; } // één krat per rij
+  R.crateG = o.g;
+  R.item = Race.rollItem(Math.random, G, R.cpu);
+  const it = Race.ITEMS[R.item];
+  Sound.crate();
+  banner(it.icon + ' ' + it.name, (isTouch ? 'Swipe ↓ ' : 'Press ↓ ') + it.how, 1.8);
+  itemHud();
+}
+function useItem() {
+  const R = G && G.race;
+  if (mode !== 'play' || paused || !R || !R.item || raceHold()) return;
+  const it = R.item, c = R.cpu;
+  R.item = null; R.items++;
+  if (it === 'turbo') { G.boostT = Race.BOOST_T; G.stunT = 0; Sound.turbo(); banner('⚡ TURBO!', '', 0.9); }
+  else if (it === 'bale') {
+    const o = { id: 'p' + (++R.nDrop), type: 'bale', lane: G.lane, x: laneX(G.lane), d: Race.dropSpot(G, c), by: 'you' };
+    R.drops.push(o);
+    G.objs.push({ type: 'bale', lane: o.lane, x: o.x, d: o.d, drop: true, mine: true });
+    Sound.land(); banner('🌾 BALE DROPPED', '', 0.9);
+  } else if (it === 'ghost') {
+    if (c.dist > G.dist && !c.finished) {
+      c.incoming.push({ id: 's' + (++R.nDrop), type: 'ghost', x: 180, d: c.dist + 620, ph: rnd(0, Math.PI * 2), sent: true });
+      Sound.ghost(); banner('👻 WHITE LADY SENT', `She's after ${R.L.name}...`, 1.4);
+    } else if (c.finished) banner('TOO LATE', `${R.L.name} already finished`, 1.2);
+    else banner('NOBODY AHEAD', 'The White Lady drifts away...', 1.2);
+  }
+  itemHud();
+}
+function itemHud() {
+  const R = G && G.race, it = R && R.item && !R.finished && mode === 'play' ? Race.ITEMS[R.item] : null;
+  show('itemBtn', !!it);
+  if (it) $('itemBtn').querySelector('b').textContent = it.icon;
+}
+const HIT_TEXT = { bale: 'OOF! HAY BALE', fence: 'OUCH! THE FENCE', wolf: 'SPLASH! THE WATERWOLF', crow: 'THE SCARECROW!', ghost: 'BRRR! THE WHITE LADY' };
+// geraakt: in het gewone spel ben je af, in RACE kost het snelheid
+function hit(type, o) {
+  if (!G.race) { die(type); return; }
+  if (o.hitDone || G.race.finished) return;
+  o.hitDone = true;
+  const res = Race.hitRunner(G);
+  if (res === 'smash') {
+    if (o.type === 'bale' || o.type === 'crow') o.dead = true; // met turbo ram je het opzij
+    for (let i = 0; i < 12; i++) part(o.x || G.px, PY - 6, rnd(-120, 120), rnd(-90, -10), 0.6, 0xd8b46a, 0.4, true, rnd(0.3, 1.5), rnd(3, 6));
+    Sound.land(); G.shake = Math.max(G.shake, 0.3);
+  } else if (res === 'hit') {
+    G.shake = 0.7; G.flash = 0.5;
+    Sound.bump();
+    try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) { /* niet ondersteund */ }
+    banner(HIT_TEXT[type] || 'OUCH!', 'Speed lost!', 1.1);
+  }
+}
+function raceFinish() {
+  const R = G.race, c = R.cpu;
+  R.finished = true;
+  R.finishT = R.t - (G.dist - Race.FINISH_D) / Math.max(1, G.speed);
+  R.won = !(c.finished && c.finishT <= R.finishT);
+  R.item = null; itemHud();
+  if (R.won) { Sound.win(); banner('🏆 YOU WIN!', Race.fmtTime(R.finishT), 2.2); }
+  else { Sound.lose(); banner('FINISHED', Race.fmtTime(R.finishT), 2.2); }
+  // meteen vastleggen (en insturen met een naam): sluit de pagina in de seconden hierna, dan telt het toch.
+  // Het antwoord van de server (plek op het scorebord) komt op het eindscherm als het er is.
+  R.before = raceRec(R.level);
+  R.rec = recordRace(R, j => { R.server = j; if (mode === 'over' && G.race === R) serverLine(R); });
+}
+function serverLine(R) {
+  const j = R.server;
+  if (j && j.ok) $('roStreak').textContent = streakText(R, j.cur, j.best) + (j.rank && j.best > 0 ? ` · #${j.rank} on the board` : '');
+}
+function raceOver() {
+  const R = G.race, c = R.cpu;
+  // computer nog niet binnen? Even zonder beeld laten uitlopen (zonder spullen) voor zijn tijd
+  for (let i = 0; i < 60 * 240 && !c.finished; i++) c.step(1 / 60, R.env);
+  mode = 'over';
+  G.banners = [];
+  Sound.bed(false);
+  const before = R.before || raceRec(R.level);
+  const newBest = R.won && before.races > 0 && !(before.best > 0 && R.finishT >= before.best);
+  const rec = R.rec || raceRec(R.level);
+  $('roStreak').textContent = streakText(R, rec.cur, rec.streak);
+  serverLine(R);
+  const nm = R.L.name, diff = Math.abs(c.finishT - R.finishT).toFixed(1);
+  $('roTitle').textContent = R.won ? '🏆 YOU WIN!' : `${nm} WINS`;
+  $('roYou').textContent = Race.fmtTime(R.finishT);
+  $('roCpu').textContent = Race.fmtTime(c.finishT);
+  $('roCpuName').textContent = nm.toLowerCase();
+  $('roDiff').textContent = R.won ? `You beat ${nm} by ${diff} s!` : `${nm} was ${diff} s faster.`;
+  show('roNewBest', newBest);
+  $('roInfo').textContent = `You hit ${G.hits} obstacle${G.hits === 1 ? '' : 's'} · used ${R.items} item${R.items === 1 ? '' : 's'}`;
+  $('roBest').textContent = rec.races > 0 ? `vs ${nm}: won ${rec.wins} of ${rec.races}${rec.best ? ' · fastest win ' + Race.fmtTime(rec.best) : ''}` : '';
+  const idx = Race.LEVEL_ORDER.indexOf(R.level), next = Race.LEVEL_ORDER[idx + 1];
+  show('roNext', !!(R.won && next));
+  if (next) { $('roNext').textContent = `Next: ${Race.LEVELS[next].name} ▶`; $('roNext').dataset.l = next; }
+  show('hud', false); show('raceBar', false); show('itemBtn', false);
+  const ro = $('raceOver');
+  ro.classList.add('wait');
+  show('raceOver', true);
+  setTimeout(() => ro.classList.remove('wait'), 700);
+}
+$('raceBtn').addEventListener('click', openRaceMenu);
+$('raceBack').addEventListener('click', closeRaceMenu);
+$('roAgain').addEventListener('click', () => { if (G.race) raceStart(G.race.level); });
+$('roNext').addEventListener('click', e => raceStart(e.currentTarget.dataset.l));
+$('roLevels').addEventListener('click', openRaceMenu);
+$('roMenu').addEventListener('click', () => { mode = 'title'; Sound.bed(false); show('raceOver', false); toTitle(); });
+function streakText(R, cur, longest) {
+  if (!RB) return '';
+  if (R.won) return `🔥 Win streak vs ${R.L.name}: ${cur}${longest > cur ? ' (longest ' + longest + ')' : cur > 1 && cur >= longest ? ' · your longest!' : ''}`;
+  return longest > 0 ? `Streak back to 0 · longest ${longest}` : '';
+}
+// race-scorebord (raceboard.js): vanuit het niveaumenu en het eindscherm
+const openRaceBoard = () => { if (RB) RB.openBoard(G.race ? G.race.level : 'rookie'); };
+$('rmBoard').addEventListener('click', openRaceBoard);
+$('roBoard').addEventListener('click', openRaceBoard);
+if (RB) RB.onClose = () => { if (!$('raceMenu').classList.contains('hidden')) fillLevels(); };
+else show('roBoard', false);
+$('itemBtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); useItem(); });
 function setPaused(p) {
   if (mode !== 'play') return;
   paused = p;
@@ -842,7 +1226,7 @@ $('againBtn').addEventListener('click', start);
 $('shareBtn').addEventListener('click', share);
 $('pauseBtn').addEventListener('click', e => { e.currentTarget.blur(); setPaused(true); });
 $('resumeBtn').addEventListener('click', () => setPaused(false));
-$('quitBtn').addEventListener('click', () => { paused = false; mode = 'title'; Sound.bed(false); Sound.resume(); show('pause', false); show('hud', false); toTitle(); });
+$('quitBtn').addEventListener('click', () => { raceQuit(); paused = false; mode = 'title'; Sound.bed(false); Sound.resume(); show('pause', false); show('hud', false); toTitle(); });
 $('muteBtn').addEventListener('click', e => { e.currentTarget.blur(); toggleMute(); });
 $('muteBtn').textContent = Sound.muted ? '🔇' : '🔊';
 document.addEventListener('visibilitychange', () => {
@@ -853,6 +1237,7 @@ window.addEventListener('blur', () => { if (mode === 'play' && !paused) setPause
 wrap.addEventListener('touchend', e => { if (!e.target.closest('a, button, textarea, input')) e.preventDefault(); }, { passive: false });
 function toTitle() {
   newGame();
+  raceScreens(false);
   show('title', true);
   $('bestTitle').textContent = best.score > 0 ? `Your best: ${best.score} points · ${best.meters} m` : '';
 }
@@ -887,9 +1272,15 @@ function update(rdt) {
     G.runPhase += dt * 9;
   } else {
     const m = G.dist / PX_PER_M;
-    G.speed = Math.min(560, 230 + m * 0.42);
+    if (!G.race) G.speed = Math.min(560, 230 + m * 0.42);
+    else if (G.race.count > 0) G.speed = 0;                                   // aftellen
+    else if (G.race.finished) { // uitlopen (klokjes laten aflopen: niet blijven struikelen of knipperen)
+      G.speed = Math.max(0, G.speed - 420 * dt); G.boostT = 0;
+      G.stunT = Math.max(0, G.stunT - dt); G.graceT = Math.max(0, G.graceT - dt);
+    }
+    else Race.stepSpeed(G, dt);                                               // optrekken, struikelen, turbo
     G.dist += G.speed * dt;
-    G.runPhase += dt * (8 + G.speed / 40);
+    if (G.speed > 1) G.runPhase += dt * (8 + G.speed / 40);
 
     const tx = laneX(G.lane), dx = tx - G.px, step = 1500 * dt;
     G.px = Math.abs(dx) <= step ? tx : G.px + Math.sign(dx) * step;
@@ -902,22 +1293,23 @@ function update(rdt) {
         if (G.jumpQueued) { G.jumpQueued = false; G.jt = 0; Sound.jump(); }
       }
     }
-    if (chance(dt * 10)) part(G.px + rnd(-5, 5), PY + 4, rnd(-15, 15), rnd(10, 30), 0.45, 0x6e5f46, 0.28, true, 0.1, 0.5);
+    if (G.speed > 1 && chance(dt * 10)) part(G.px + rnd(-5, 5), PY + 4, rnd(-15, 15), rnd(10, 30), 0.45, 0x6e5f46, 0.28, true, 0.1, 0.5);
 
     if (mode === 'play') {
       G.beatT -= dt;
       if (G.beatT <= 0) { Sound.beat(); G.beatT = 60 / (64 + Math.min(70, m / 10)); }
     }
 
-    while (G.spawnD < G.dist + AHEAD) G.spawnD += spawnPattern(G.spawnD);
-    while (G.nextSign * PX_PER_M < G.dist + AHEAD) {
+    if (G.race) { raceTick(dt); if (mode !== 'play') return; }
+    else while (G.spawnD < G.dist + AHEAD) G.spawnD += spawnPattern(G.spawnD);
+    while (G.nextSign * PX_PER_M < G.dist + AHEAD && (!G.race || G.nextSign < Race.RACE_M)) {
       G.objs.push({ type: 'sign', d: G.nextSign * PX_PER_M, label: String(G.nextSign) });
       G.nextSign += 100;
     }
 
     const ms = MILESTONES[G.nextMilestone];
     const target = ms ? ms[0] : 1000 + (G.nextMilestone - MILESTONES.length + 1) * 500;
-    if (m >= target) {
+    if (!G.race && m >= target) {
       if (ms) banner(`${target} m`, ms[1], 2.6); else banner(`${target} m!`, 'Still running...', 2.4);
       Sound.milestone();
       G.nextMilestone++;
@@ -935,6 +1327,7 @@ function update(rdt) {
       } else {
         G.blackClock += dt;
         G.light = Math.max(0.1, G.light - dt * 6);
+        if (!G.crowsMoved && G.light <= 0.15 && G.race) G.crowsMoved = true; // RACE: niet schuiven (de computer ziet dat niet)
         if (!G.crowsMoved && G.light <= 0.15) {
           // pas schuiven als het licht echt uit is (in 3D zie je het anders gebeuren)
           G.crowsMoved = true;
@@ -956,7 +1349,11 @@ function update(rdt) {
   const air = z > 0.32;
   const near = -20; // vanaf hier (logisch y) zie je het goed genoeg voor een hint
   for (const o of G.objs) {
-    if (o.type === 'ghost' && mode !== 'title') o.d -= 40 * dt;
+    if (o.ref) { // geest achter de computer aan (weg als hij voorbij is of als jij hem inhaalt)
+      o.d = o.ref.d;
+      if (G.race && (o.d < G.race.cpu.dist - 120 || G.dist > G.race.cpu.dist)) o.dead = true;
+    }
+    else if (o.type === 'ghost' && mode !== 'title') o.d -= 40 * dt;
     o.y = PY - (o.d - G.dist);
     if (o.type === 'wolf') {
       if (o.st === 'lurk') {
@@ -990,9 +1387,11 @@ function update(rdt) {
       hint('fence', 'FENCE AHEAD', 'Swipe ↑ or tap to JUMP!');
     } else if (o.type === 'coin') {
       o.spin += dt * 5;
+    } else if (o.type === 'crate' && o.y > near - 260) {
+      hint('crate', 'GRAB A CRATE ❓', 'Items help you win the race');
     }
 
-    if (mode !== 'play' || o.dead) continue;
+    if (mode !== 'play' || o.dead || o.ref) continue;
     const dy = Math.abs(o.y - PY);
     switch (o.type) {
       case 'coin':
@@ -1004,11 +1403,12 @@ function update(rdt) {
           for (let i = 0; i < 8; i++) part(o.x + rnd(-8, 8), o.y, rnd(-60, 60), rnd(-40, 20), 0.5, o.kind === 'vase' ? 0x9ec3ff : 0xffd66b, 0.35, true, 1, rnd(2, 4));
         }
         break;
-      case 'bale': if (dy < 24 && Math.abs(o.x - G.px) < 29 && !air) die('bale'); break;
-      case 'fence': if (dy < 15 && !air) die('fence'); break;
-      case 'wolf': if ((o.st === 'lunge' || o.st === 'out') && dy < 22 && G.px < o.x + 24) die('wolf'); break;
-      case 'crow': if (dy < 22 && Math.abs(o.x - G.px) < 26) die('crow'); break;
-      case 'ghost': if (dy < 24 && Math.abs(o.x - G.px) < 24) die('ghost'); break;
+      case 'bale': if (dy < 24 && Math.abs(o.x - G.px) < 29 && !air) hit('bale', o); break;
+      case 'fence': if (dy < 15 && !air) hit('fence', o); break;
+      case 'wolf': if ((o.st === 'lunge' || o.st === 'out') && dy < 22 && G.px < o.x + 24) hit('wolf', o); break;
+      case 'crow': if (dy < 22 && Math.abs(o.x - G.px) < 26) hit('crow', o); break;
+      case 'ghost': if (dy < 24 && Math.abs(o.x - G.px) < 24) hit('ghost', o); break;
+      case 'crate': if (dy < 18 && Math.abs(o.x - G.px) < 22) { o.dead = true; pickCrate(o); } break;
     }
   }
   G.objs = G.objs.filter(o => {
@@ -1074,7 +1474,35 @@ function render(dt = 0) {
   else player.position.set(pxw, jh + bob, 0);
   const lean = clamp((laneX(G.lane) - G.px) / LANE_W, -1, 1);
   player.rotation.set(-0.12 - z * 0.25, lean * 0.35, -lean * 0.25 + Math.sin(G.runPhase) * 0.06);
-  if (mode === 'dying' || mode === 'over') { player.rotation.x = -0.9 * Math.min(1, G.dieT * 3); }
+  if (G.race) {
+    // RACE: struikelen na een botsing, daarna even knipperen (dan kan je niet nog een keer geraakt worden)
+    if (G.stunT > 0) player.rotation.x = -0.55;
+    player.visible = !(mode === 'play' && G.graceT > 0 && G.stunT <= 0 && Math.floor(G.time * 12) % 2);
+  } else {
+    player.visible = true;
+    if (mode === 'dying' || mode === 'over') { player.rotation.x = -0.9 * Math.min(1, G.dieT * 3); }
+  }
+  // de tegenstander (alleen in RACE en als hij in beeld is)
+  if (rival) {
+    const R = G.race, c = R && R.cpu;
+    let vis = false;
+    if (c && (mode === 'play' || mode === 'over')) {
+      const ry = PY - (c.dist - G.dist);
+      // in beeld; maar vlak achter je in dezelfde baan niet, dan staat hij tussen de camera en jou
+      vis = ry > PY - AHEAD && ry < PY + 70 && !(ry > PY - 30 && Math.abs(c.px - G.px) < 46);
+      if (vis) {
+        const cz = c.jt >= 0 ? Math.sin(Math.PI * c.jt) : 0;
+        const cb = c.speed > 1 ? Math.abs(Math.sin(c.runPhase)) * 0.22 : 0;
+        rival.position.set(wx(c.px), 3.4 * Math.pow(cz, 0.6) + cb, wz(ry));
+        const cl = clamp((laneX(c.lane) - c.px) / LANE_W, -1, 1);
+        rival.rotation.set(c.stunT > 0 ? -0.55 : -0.12 - cz * 0.25, cl * 0.35, -cl * 0.25 + Math.sin(c.runPhase) * 0.06);
+        rivalV.uLeg.value = c.speed > 1 && c.stunT <= 0 ? legSwing(c.runPhase) * (1 - cz) : 0;
+        rivalV.tag.material.opacity = clamp((ry - (PY - AHEAD)) / 300, 0, 1) * 0.95;
+        if (c.graceT > 0 && c.stunT <= 0 && Math.floor(G.time * 12) % 2) vis = false;
+      }
+    }
+    rival.visible = vis;
+  }
 
   // zaklamp volgt de speler
   const L = G.light;
@@ -1095,6 +1523,8 @@ function render(dt = 0) {
       case 'bale': case 'crow': v.position.set(wx(o.x), 0, oz); break;
       case 'fence': v.position.set(0, 0, oz); break;
       case 'sign': v.position.set(wx(ROAD_L) - 1.2, 0, oz); v.rotation.y = 0.5; break;
+      case 'crate': v.position.set(wx(o.x), 0.15 + Math.sin(G.time * 3 + o.lane) * 0.15, oz); v.userData.spin.rotation.y = G.time * 1.6 + o.lane; break;
+      case 'finish': v.position.set(0, 0, oz); break;
       case 'coin': {
         v.position.set(wx(o.x), Math.sin(o.spin * 0.6) * 0.15, oz);
         if (v.userData.spin) v.userData.spin.rotation.y = o.spin;
@@ -1174,9 +1604,8 @@ function render(dt = 0) {
   applyLook();
   // benen: zwaaien bij het rennen (minder in de lucht), stil als hij valt; in de winkel rent hij op de plaats
   const shopOn = !!(window.DashLook && window.DashLook.shop);
-  // de renhouding staat al gespreid: vooral naar elkaar toe zwaaien (tot 0,45) en maar een beetje verder open (0,2)
-  const legSwing = ph => 0.12 + 0.33 * Math.sin(ph);
-  if (look3.uLeg) look3.uLeg.value = shopOn ? legSwing(performance.now() / 110) : (mode === 'play' || mode === 'title') ? legSwing(G.runPhase) * (1 - z) : 0;
+  const running = (mode === 'play' || mode === 'title') && G.speed > 1 && !(G.stunT > 0); // stil bij het aftellen en struikelen
+  if (look3.uLeg) look3.uLeg.value = shopOn ? legSwing(performance.now() / 110) : running ? legSwing(G.runPhase) * (1 - z) : 0;
   if (shopOn) {
     // winkel: de boer draait rond en de camera kijkt van dichtbij; hij staat in de bovenste helft (onderin zit de winkel)
     player.rotation.set(0, performance.now() / 1400, 0);
@@ -1208,6 +1637,25 @@ function render(dt = 0) {
 let lastHud = '';
 function hud() {
   if (mode !== 'play') return;
+  if (G.race) {
+    // RACE: tijd, plek, nog te gaan; balkje met jou (goud) en de tegenstander (blauw)
+    const R = G.race, c = R.cpu;
+    const t = Race.fmtTime(R.finished ? R.finishT : R.t);
+    const left = Math.max(0, Math.ceil((Race.FINISH_D - G.dist) / PX_PER_M));
+    const first = R.finished ? R.won : !(c.finished || c.dist > G.dist);
+    const gap = Math.round((c.dist - G.dist) / PX_PER_M);
+    const txt = t + '|' + left + '|' + first + '|' + gap;
+    if (txt !== lastHud) {
+      lastHud = txt;
+      $('hMeters').textContent = t;
+      $('hScore').textContent = (first ? '1st' : '2nd') + ' · ' + left + ' m to go';
+      $('rbGap').textContent = c.finished ? 'finished' : gap > 0 ? `${gap} m ahead` : gap < 0 ? `${-gap} m behind` : 'side by side';
+    }
+    const pct = d => (clamp(d / Race.FINISH_D, 0, 1) * 100).toFixed(1) + '%';
+    $('rbMe').style.left = pct(G.dist);
+    $('rbCpu').style.left = pct(c.dist);
+    return;
+  }
   const txt = meters() + '|' + score();
   if (txt === lastHud) return;
   lastHud = txt;
@@ -1290,19 +1738,23 @@ newGame();
 loadModels(p => { playBtn.textContent = `Loading… ${Math.round(p * 100)}%`; }).then(() => {
   buildWorldModels();
   try { prepLook(); applyLook(); } catch (e) { if (window.console) console.warn('Polder Dash: outfit', e); }
+  try { buildRival(); } catch (e) { rival = null; if (window.console) console.warn('Polder Dash: race rival', e); }
   playBtn.disabled = false;
   playBtn.textContent = '▶ RUN';
+  show('raceBtn', true); // RACE bestaat alleen in 3D
   mode = 'title';
   toTitle();
   show('simpleBtn', true); // altijd een kleine link; wordt groot als het traag loopt
   // Alles een keer laten zien en tekenen, zodat de shaders klaar zijn voordat je speelt
   // (anders hapert het spel de eerste keer dat een monster verschijnt).
-  const warm = ['bale', 'fence', 'wolf', 'crow', 'ghost', 'sign'].map(type => ({ type, label: '0', x: 180, y: PY - 100, st: 'out', t: 1, maxLane: 0, ph: 0, d: 0, flare: 0 }))
+  const warm = ['bale', 'fence', 'wolf', 'crow', 'ghost', 'sign', 'crate', 'finish'].map(type => ({ type, label: '0', x: 180, y: PY - 100, st: 'out', t: 1, maxLane: 0, ph: 0, d: 0, flare: 0, lane: 1 }))
     .concat(['coin', 'vase', 'cheese'].map(kind => ({ type: 'coin', kind, x: 180, y: PY - 100, spin: 0, d: 0 })));
   for (const o of warm) { o.view = createView(o); o.view.position.set(0, 0, -8); }
   const warmRipple = rippleMesh(); warmRipple.position.set(0, 0.05, -8);
+  if (rival) { rival.visible = true; rival.position.set(2, 0, -8); }
   try { renderer.compile(scene, camera); renderer.render(scene, camera); } catch (e) { /* oudere browsers */ }
   for (const o of warm) releaseView(o);
+  if (rival) rival.visible = false;
   warmRipple.visible = false;
 }).catch(err => {
   console.error(err);
@@ -1322,7 +1774,7 @@ requestAnimationFrame(frame);
 if (/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) window.__dash = {
   get G() { return G; }, get mode() { return mode; }, get perf() { return perf; }, set hold(v) { hold = v; },
   fpsProbe, get lowQuality() { return lowQuality; },
-  start, die, move, jump, laneX, renderer, scene, camera,
+  start, die, move, jump, laneX, renderer, scene, camera, raceStart, useItem, openRaceMenu, Race, get rival() { return rival; },
   add(o) { G.objs.push(o); return o; },
   setDist(m) { G.dist = m * PX_PER_M; G.spawnD = G.dist + AHEAD; for (const o of G.objs) releaseView(o); G.objs = []; G.nextSign = Math.ceil(m / 100) * 100 || 100; while (MILESTONES[G.nextMilestone] && MILESTONES[G.nextMilestone][0] <= m) G.nextMilestone++; },
   step(n = 1, dt = 1 / 60) { const t0 = performance.now(); for (let i = 0; i < n; i++) { if (!paused && mode !== 'over') update(dt); } render(); hud(); return (performance.now() - t0) / n; },

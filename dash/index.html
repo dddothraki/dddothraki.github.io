@@ -54,7 +54,6 @@
   .stats b { display:block; font-size:44px; line-height:1; color:var(--gold); }
   .stats span { font-size:12px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); }
   #newBest { color:var(--green); font-weight:900; letter-spacing:2px; }
-  #over .btns { display:flex; flex-direction:column; gap:10px; width:100%; max-width:290px; }
   /* High scores en Shop naast elkaar */
   .row2 { display:flex; gap:8px; justify-content:center; width:100%; max-width:290px; }
   .row2 > button { flex:1; padding-left:6px; padding-right:6px; white-space:nowrap; }
@@ -92,19 +91,49 @@
   .linkbtn { background:none; padding:0; color:var(--gold); font-size:13px; font-weight:700; text-decoration:underline; border-radius:0; }
   .lbgood { color:var(--green); font-weight:800; }
   .lbbad { color:#ff8a7a; }
-  #board .tabs { display:flex; gap:6px; }
-  #board .tabs button { font-size:14px; padding:8px 12px; background:rgba(255,255,255,.1); color:#cfd6da; }
-  #board .tabs button.on { background:var(--gold); color:#111; }
-  #lbList { list-style:none; margin:0; padding:0; width:100%; max-width:300px; }
-  #lbList li { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px; font-size:15px; }
-  #lbList li:nth-child(odd) { background:rgba(255,255,255,.05); }
-  #lbList li.me { background:rgba(242,193,78,.2); }
-  #lbList .rk { width:22px; color:var(--muted); font-weight:800; text-align:right; }
-  #lbList li:nth-child(-n+3) .rk { color:var(--gold); }
-  #lbList .nm { flex:1; text-align:left; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  #lbList .own { font-size:.9em; line-height:1; vertical-align:.18em; }
-  #lbList .mt { color:var(--muted); font-size:12px; }
-  #lbList .sc { min-width:48px; text-align:right; font-weight:900; color:var(--gold); }
+  .tabs { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; }
+  .tabs button { font-size:14px; padding:8px 12px; background:rgba(255,255,255,.1); color:#cfd6da; }
+  .tabs button.on { background:var(--gold); color:#111; }
+  #rsTabs button { padding:8px 10px; }
+  .lblist { list-style:none; margin:0; padding:0; width:100%; max-width:300px; }
+  .lblist li { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px; font-size:15px; }
+  .lblist li:nth-child(odd) { background:rgba(255,255,255,.05); }
+  .lblist li.me { background:rgba(242,193,78,.2); }
+  .lblist .rk { width:22px; color:var(--muted); font-weight:800; text-align:right; }
+  .lblist li:nth-child(-n+3) .rk { color:var(--gold); }
+  .lblist .nm { flex:1; text-align:left; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lblist .own { font-size:.9em; line-height:1; vertical-align:.18em; }
+  .lblist .mt { color:var(--muted); font-size:12px; }
+  .lblist .sc { min-width:48px; text-align:right; font-weight:900; color:var(--gold); }
+  /* RACE (tegen de computer) */
+  .runrow { display:flex; gap:10px; justify-content:center; width:100%; max-width:300px; }
+  .runrow .big { flex:1 1 0; max-width:145px; padding-left:8px; padding-right:8px; white-space:nowrap; }
+  .big.race { background:#6cc3ff; box-shadow:0 4px 0 #2d6a99; }
+  .big.race:active { box-shadow:0 1px 0 #2d6a99; }
+  #lvls { display:flex; flex-direction:column; gap:8px; width:100%; max-width:290px; }
+  .lvl { display:flex; align-items:center; gap:12px; text-align:left; background:#1b2a36; color:#e9ecef; border:1px solid rgba(255,255,255,.15);
+    padding:11px 14px; box-shadow:0 3px 0 #000; }
+  .lvl b { font-size:18px; color:#6cc3ff; min-width:100px; }
+  .lvl small { font-size:12px; color:#cfd6da; font-weight:600; white-space:pre-line; line-height:1.35; }
+  .lvl.won { border-color:rgba(87,194,106,.7); }
+  .lvl.won b { color:var(--green); }
+  #raceOver .stats b { font-size:34px; }
+  #roNewBest { color:var(--green); font-weight:900; letter-spacing:2px; }
+  #over .btns, #raceOver .btns { display:flex; flex-direction:column; gap:10px; width:100%; max-width:290px; }
+  #raceOver.wait .btns { pointer-events:none; opacity:.6; }
+  #raceBar { position:absolute; left:134px; right:96px; top:calc(16px + env(safe-area-inset-top)); pointer-events:none; text-align:center; }
+  #raceBar .trk { position:relative; height:6px; border-radius:3px; background:rgba(255,255,255,.2); box-shadow:0 1px 0 #000; margin-right:14px; }
+  #raceBar .trk::after { content:'🏁'; position:absolute; right:-16px; top:-9px; font-size:14px; }
+  #raceBar i { position:absolute; top:-5px; width:16px; height:16px; margin-left:-8px; border-radius:50%; border:2px solid #000; }
+  #rbMe { background:var(--gold); z-index:1; }
+  #rbCpu { background:#6cc3ff; }
+  #rbGap { display:block; margin-top:10px; font-size:12px; font-weight:800; color:#6cc3ff; text-shadow:0 1px 0 #000; white-space:nowrap; }
+  /* in de hoek: een tik in het midden is springen */
+  #itemBtn { position:absolute; right:14px; bottom:calc(22px + env(safe-area-inset-bottom)); width:76px; height:76px;
+    border-radius:50%; padding:0; background:rgba(0,0,0,.55); border:2px solid var(--gold); color:#fff; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; box-shadow:0 0 18px rgba(242,193,78,.45); }
+  #itemBtn b { font-size:34px; line-height:1; }
+  #itemBtn span { font-size:11px; font-weight:800; color:var(--gold); margin-top:3px; letter-spacing:1px; }
 </style>
 </head>
 <body>
@@ -122,11 +151,13 @@
       <button class="icon" id="muteBtn" aria-label="Sound on/off" tabindex="-1">🔊</button>
     </div>
   </div>
+  <div id="raceBar" class="hidden"><div class="trk"><i id="rbCpu"></i><i id="rbMe"></i></div><span id="rbGap"></span></div>
+  <button id="itemBtn" class="hidden" tabindex="-1" aria-label="Use item"><b>🌾</b><span>USE</span></button>
 
   <div id="title" class="screen">
     <h1>POLDER<br><span>DASH</span></h1>
     <p class="tag">Run the haunted dike. Don't stop.</p>
-    <button id="playBtn" class="big" disabled>Loading…</button>
+    <div class="runrow"><button id="playBtn" class="big" disabled>Loading…</button><button id="raceBtn" class="big race hidden">🏁 RACE</button></div>
     <p class="how">Swipe ← → to dodge · Swipe ↑ or tap to jump<br>PC: arrow keys or A / D, W or Space to jump</p>
     <p class="how" id="bestTitle"></p>
     <div class="row2"><button id="lbOpen" class="ghostbtn">🏆 High scores</button><button id="shopOpen" class="ghostbtn">👕 Shop</button></div>
@@ -168,10 +199,47 @@
     <a class="small-link" href="../">More games by DDD Games</a>
   </div>
 
+  <div id="raceMenu" class="screen hidden">
+    <h2>🏁 RACE</h2>
+    <p class="how">First to <b>1000 m</b> wins. Obstacles don't stop you,<br>but they slow you down.</p>
+    <p class="how">Grab <b>❓ crates</b>: 🌾 drop a hay bale · ⚡ turbo<br>👻 send the White Lady after the leader<br><span id="rmKeys"></span></p>
+    <div id="lvls"></div>
+    <div class="row2"><button id="rmBoard" class="ghostbtn">🏆 Race board</button><button id="raceBack" class="ghostbtn">Back</button></div>
+  </div>
+
+  <div id="raceOver" class="screen hidden">
+    <h2 id="roTitle">YOU WIN!</h2>
+    <div class="stats">
+      <div><b id="roYou">0:00.0</b><span>you</span></div>
+      <div><b id="roCpu">0:00.0</b><span id="roCpuName">rookie</span></div>
+    </div>
+    <p id="roDiff" class="tag"></p>
+    <p id="roNewBest" class="hidden">NEW BEST TIME!</p>
+    <p id="roStreak" class="tag"></p>
+    <p id="roInfo" class="how"></p>
+    <p id="roBest" class="how"></p>
+    <div class="btns">
+      <button id="roAgain" class="big">↻ Race again</button>
+      <button id="roNext" class="ghostbtn hidden">Next ▶</button>
+      <div class="row2"><button id="roLevels" class="ghostbtn">🏁 Levels</button><button id="roBoard" class="ghostbtn">🏆 Board</button><button id="roMenu" class="ghostbtn">Menu</button></div>
+    </div>
+  </div>
+
+  <div id="raceBoard" class="screen hidden">
+    <h2>🏆 Race board</h2>
+    <p class="how">Longest win streak in a row vs the computer</p>
+    <div class="tabs" id="rsTabs"><button data-l="rookie">Rookie</button><button data-l="advanced">Advanced</button><button data-l="pro">Pro</button><button data-l="expert">Expert</button></div>
+    <ol id="rsList" class="lblist"></ol>
+    <p id="rsEmpty" class="how hidden"></p>
+    <p id="rsMine" class="how"></p>
+    <p id="rsHint" class="how small"></p>
+    <button id="rsBack" class="big">Back</button>
+  </div>
+
   <div id="board" class="screen hidden">
     <h2>🏆 High scores</h2>
     <div class="tabs"><button data-p="day" class="on">Today</button><button data-p="week">This week</button><button data-p="all">All time</button></div>
-    <ol id="lbList"></ol>
+    <ol id="lbList" class="lblist"></ol>
     <p id="lbEmpty" class="how hidden"></p>
     <p id="lbReset" class="how"></p>
     <div id="lbMeBox">
@@ -190,6 +258,7 @@
 <script src="../shared/shop.js?v=3"></script>
 <script src="look.js?v=1"></script>
 <script src="board.js?v=7"></script>
+<script src="raceboard.js?v=2"></script>
 <script>
   // winkel: kleding kopen met je punten (../shared/shop.js); spaarpot en outfit bij je naam (../shared/wallet.js)
   (function () {
@@ -224,7 +293,7 @@
   })();
 </script>
 <script type="module">
-  if (!window.__dashClassic) import('./game3d.js?v=7').catch(function (e) { if (!window.__dash3dStarted) window.__dashFallback(e && e.message); });
+  if (!window.__dashClassic) import('./game3d.js?v=13').catch(function (e) { if (!window.__dash3dStarted) window.__dashFallback(e && e.message); });
 </script>
 <script>
   // Start de 3D-versie na 15 s nog niet (heel traag netwerk, oude browser), dan de platte versie.
