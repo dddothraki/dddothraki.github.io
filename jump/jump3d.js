@@ -175,6 +175,56 @@ const farGround = mesh(G.plane, mat(0x7fbf5e), 4000, 900, 1, 0, -0.02, Z_BACK - 
 farGround.rotation.x = -Math.PI / 2; scene.add(farGround);
 
 // ---------- boer ----------
+// kleding uit de winkel (look.js): eigen materialen, want M.red delen ook tulpen en huizen
+const LOOK = {
+  shirt: new THREE.MeshLambertMaterial({ color: 0xe8413a }),
+  SHIRT: { red: [0xe8413a, 0], blue: [0x5ab4ee, 0], green: [0x3caa4a, 0], black: [0x2a2a2e, 0], gold: [0xf2c14e, 0x4a3200] },
+  POLE: {
+    wood: null, // M.pole
+    silver: new THREE.MeshPhongMaterial({ color: 0xd8dde2, specular: 0xffffff, shininess: 90 }),
+    gold: new THREE.MeshPhongMaterial({ color: 0xf2c14e, specular: 0xfff2b0, shininess: 80, emissive: 0x3a2600 }),
+    diamond: new THREE.MeshPhongMaterial({ color: 0xc8f6ff, specular: 0xffffff, shininess: 140, emissive: 0x2a7a90, transparent: true, opacity: 0.88 }),
+  },
+};
+function makeHats(head) {
+  const hats = {};
+  const add = (k, parts) => { const g = new THREE.Group(); parts(g); g.visible = false; head.add(g); hats[k] = g; };
+  add('straw', g => {
+    const st = mat(0xe8c96a);
+    mesh(G.cyl, st, 0.42, 0.03, 0.42, 0, 0.12, 0, g);
+    mesh(G.cyl, st, 0.2, 0.17, 0.2, 0, 0.22, 0, g);
+    mesh(G.cyl, mat(0xd8413a), 0.205, 0.045, 0.205, 0, 0.165, 0, g);
+  });
+  add('tophat', g => {
+    const bl = mat(0x1b1b1f);
+    mesh(G.cyl, bl, 0.33, 0.03, 0.33, 0, 0.13, 0, g);
+    mesh(G.cyl, bl, 0.19, 0.42, 0.19, 0, 0.34, 0, g);
+    mesh(G.cyl, mat(0xc0322a), 0.195, 0.06, 0.195, 0, 0.18, 0, g);
+  });
+  add('cowboy', g => {
+    const br = mat(0x8a5a2b);
+    const brim = mesh(G.cyl, br, 0.45, 0.03, 0.4, 0, 0.12, 0, g);
+    // rand iets omhoog aan de zijkanten
+    mesh(G.box, br, 0.5, 0.03, 0.08, 0, 0.15, 0.37, g).rotation.x = -0.6;
+    mesh(G.box, br, 0.5, 0.03, 0.08, 0, 0.15, -0.37, g).rotation.x = 0.6;
+    mesh(G.cyl, br, 0.2, 0.22, 0.19, 0, 0.24, 0, g);
+    mesh(G.box, mat(0x6a4220), 0.06, 0.05, 0.2, 0, 0.355, 0, g);
+    mesh(G.cyl, mat(0x4a2e14), 0.205, 0.04, 0.195, 0, 0.16, 0, g);
+    brim.castShadow = true;
+  });
+  add('crown', g => {
+    const gold = new THREE.MeshPhongMaterial({ color: 0xf2c14e, specular: 0xfff2b0, shininess: 80, emissive: 0x5a3c00 });
+    mesh(G.cyl, gold, 0.2, 0.1, 0.2, 0, 0.19, 0, g);
+    for (let i = 0; i < 5; i++) {
+      const a = i / 5 * Math.PI * 2;
+      mesh(G.cone, gold, 0.05, 0.13, 0.05, Math.cos(a) * 0.17, 0.3, Math.sin(a) * 0.17, g);
+    }
+    mesh(G.sphLo, mat(0xe8413a, { emissive: 0x500000 }), 0.035, 0.035, 0.035, 0.2, 0.19, 0, g);
+    mesh(G.sphLo, mat(0x5ab4ee, { emissive: 0x08304a }), 0.025, 0.025, 0.025, 0.14, 0.19, 0.14, g);
+    mesh(G.sphLo, mat(0x5ab4ee, { emissive: 0x08304a }), 0.025, 0.025, 0.025, 0.14, 0.19, -0.14, g);
+  });
+  return hats;
+}
 function makeFarmer() {
   const g = new THREE.Group();
   const body = new THREE.Group(); g.add(body);
@@ -187,7 +237,7 @@ function makeFarmer() {
     legs.push(hip);
   }
   mesh(G.box, M.blue, 0.4, 0.34, 0.38, 0, 0.88, 0, body);
-  mesh(G.box, M.red, 0.38, 0.32, 0.36, 0, 1.2, 0, body);
+  mesh(G.box, LOOK.shirt, 0.38, 0.32, 0.36, 0, 1.2, 0, body);
   mesh(G.box, M.blue, 0.06, 0.3, 0.06, 0.1, 1.2, 0.15, body);   // bretels
   mesh(G.box, M.blue, 0.06, 0.3, 0.06, 0.1, 1.2, -0.15, body);
   const head = new THREE.Group(); head.position.set(0.02, 1.58, 0); body.add(head);
@@ -196,23 +246,43 @@ function makeFarmer() {
   mesh(G.sphLo, M.black, 0.03, 0.035, 0.03, 0.19, 0.06, 0.08, head);
   mesh(G.sphLo, M.black, 0.03, 0.035, 0.03, 0.19, 0.06, -0.08, head);
   const mouth = mesh(G.box, M.black, 0.02, 0.02, 0.09, 0.2, -0.1, 0, head);
-  const capM = mesh(G.sph, M.orange, 0.235, 0.15, 0.235, 0, 0.09, 0, head);
-  mesh(G.box, M.orange, 0.2, 0.03, 0.24, 0.2, 0.08, 0, head);
+  const cap = new THREE.Group(); head.add(cap);
+  const capM = mesh(G.sph, M.orange, 0.235, 0.15, 0.235, 0, 0.09, 0, cap);
+  mesh(G.box, M.orange, 0.2, 0.03, 0.24, 0.2, 0.08, 0, cap);
   capM.castShadow = true;
+  const hats = makeHats(head); hats.cap = cap;
   for (const z of [-0.25, 0.25]) {
     const sh = new THREE.Group(); sh.position.set(0, 1.32, z); body.add(sh);
-    mesh(G.cyl, M.red, 0.075, 0.5, 0.075, 0, -0.25, 0, sh);
+    mesh(G.cyl, LOOK.shirt, 0.075, 0.5, 0.075, 0, -0.25, 0, sh);
     mesh(G.sphLo, M.skin, 0.08, 0.08, 0.08, 0, -0.52, 0, sh);
     arms.push(sh);
   }
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
-  return { g, body, legs, arms, head, mouth };
+  return { g, body, legs, arms, head, mouth, hats };
 }
 const F = makeFarmer();
 F.g.scale.setScalar(FS);
 scene.add(F.g);
 const pole = mesh(G.cyl, M.pole, 0.05, 1, 0.05);
 pole.castShadow = true; scene.add(pole);
+// diamanten stok: een paar glinsteringen die over de stok lopen
+const sparkles = [];
+for (let i = 0; i < 3; i++) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  sp.visible = false; scene.add(sp); sparkles.push(sp);
+}
+let lookKey = '';
+function applyLook() {
+  const L = window.JumpLook;
+  const w = L ? L.wear : { shirt: 'red', hat: 'cap', pole: 'wood' };
+  const k = w.shirt + '|' + w.hat + '|' + w.pole;
+  if (k === lookKey) return;
+  lookKey = k;
+  const c = LOOK.SHIRT[w.shirt] || LOOK.SHIRT.red;
+  LOOK.shirt.color.setHex(c[0]); LOOK.shirt.emissive.setHex(c[1]);
+  for (const h in F.hats) F.hats[h].visible = h === (F.hats[w.hat] ? w.hat : 'cap');
+  pole.material = LOOK.POLE[w.pole] || M.pole;
+}
 // eendenkroos rond het hoofd bij zwemmen
 const weed = new THREE.Group();
 for (let i = 0; i < 7; i++) mesh(G.cylLo, M.lily, 0.08 + hash(i) * 0.06, 0.01, 0.08 + hash(i + 3) * 0.06, (hash(i + 9) - 0.5) * 0.9, 0, (hash(i + 20) - 0.5) * 0.9, weed);
@@ -465,6 +535,21 @@ function setPole(view) {
   pole.rotation.z = Math.atan2(dy, dx) - Math.PI / 2;
 }
 
+// winkel: de boer staat (ook na een plons) op het land voor de sloot, met zijn stok schuin vooruit
+function shopView(view) {
+  const GY = view.GY, d = view.ditch(view.n);
+  const p = { x: d.xs, y: GY, v: 0, vx: 0, vy: 0, phase: 0, t: 0 };
+  const h = { x: p.x + 6, y: p.y - 22 }, a2 = -0.55;
+  const seg = [h.x - 32 * Math.cos(a2), h.y - 32 * Math.sin(a2), h.x + 88 * Math.cos(a2), h.y + 88 * Math.sin(a2)];
+  return { p, mode: 'ready', time: view.time, fly: null, GY, hands: () => h, poleSeg: () => seg };
+}
+// camera draait langzaam heen en weer voor de boer langs; de boer staat in het bovenste deel (onderin zit de winkel)
+function shopCamera(view) {
+  const f = F.g.position, a = 0.75 + Math.sin(performance.now() / 1600) * 0.55, R0 = 8.6;
+  camera.position.set(f.x + Math.sin(a) * R0, f.y + 2.2, Math.cos(a) * R0);
+  camera.lookAt(f.x + 0.1, f.y + 0.3, 0);
+}
+
 let frames = 0, fpsT = 0, fpsN = 0, playT = 0, lastNow = performance.now(), fpsChecks = 0;
 const R = {
   draw(view) {
@@ -513,8 +598,23 @@ const R = {
     }
     updateSky(view.skyK, camX);
     sun.target.position.set(wx(view.p.x), 0, 0);
-    setFarmer(view);
-    setPole(view);
+    applyLook();
+    const L = window.JumpLook, shop = !!(L && L.shop);
+    const fv = shop ? shopView(view) : view;
+    setFarmer(fv);
+    setPole(fv);
+    if (shop) shopCamera(view);
+    // diamanten stok glinstert
+    const dia = pole.visible && pole.material === LOOK.POLE.diamond;
+    for (let i = 0; i < sparkles.length; i++) {
+      const sp = sparkles[i];
+      sp.visible = dia;
+      if (!dia) continue;
+      const u = (now / 2000 + i / sparkles.length) % 1, len = pole.scale.y;
+      tmp.set(0, (u - 0.5) * len, 0).applyEuler(pole.rotation).add(pole.position);
+      sp.position.set(tmp.x, tmp.y, tmp.z + 0.06);
+      const sz = 0.2 * Math.sin(u * Math.PI); sp.scale.set(sz, sz, 1);
+    }
     renderer.render(scene, camera);
     // snelheid meten tijdens het spelen; te traag: eerst lagere kwaliteit, dan de knop "simple mode"
     if (view.running && !view.paused && !document.hidden) {

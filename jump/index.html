@@ -55,6 +55,10 @@
   .stats span { font-size:12px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); }
   #newBest { color:var(--green); font-weight:900; letter-spacing:2px; }
   #over .btns { display:flex; flex-direction:column; gap:10px; width:100%; max-width:290px; }
+  /* High scores en Shop naast elkaar */
+  .row2 { display:flex; gap:8px; justify-content:center; width:100%; max-width:290px; }
+  .row2 > button { flex:1; padding-left:6px; padding-right:6px; white-space:nowrap; }
+  #lbMsg { white-space:pre-line; }
   #hud { position:absolute; left:0; right:0; top:0; display:flex; align-items:flex-start; justify-content:space-between;
     padding:calc(8px + env(safe-area-inset-top)) 10px 0; pointer-events:none; }
   #hud .num { font-weight:900; font-size:26px; text-shadow:0 2px 0 #000, 0 0 8px rgba(0,0,0,.5); color:#fff; }
@@ -119,7 +123,7 @@
     <button id="playBtn" class="big">▶ JUMP</button>
     <p class="how">Let go right before the edge.<br><b>Yellow strip</b> = PERFECT (+1) · <b>golden clog</b> = +1<br>Watch out for wind and mud!<br>PC: hold Space, or click and hold</p>
     <p class="how" id="bestTitle"></p>
-    <button id="lbOpen" class="ghostbtn">🏆 High scores</button>
+    <div class="row2"><button id="lbOpen" class="ghostbtn">🏆 High scores</button><button id="shopOpen" class="ghostbtn">👕 Shop</button></div>
     <div class="games"><a class="btn other" href="../dash/">🎮 POLDER DASH</a><a class="btn other" href="../stampede/">🎮 STAMPEDE</a></div>
     <a class="small-link" href="../">More games by DDD Games</a>
     <button id="simpleBtn" class="ghostbtn hidden">Slow phone? Try simple mode</button>
@@ -149,8 +153,7 @@
     </div>
     <div class="btns">
       <button id="againBtn" class="big">↻ Jump again</button>
-      <button id="lbOpen2" class="ghostbtn">🏆 High scores</button>
-      <button id="shareBtn" class="ghostbtn">Share my score</button>
+      <div class="row2"><button id="lbOpen2" class="ghostbtn">🏆 Scores</button><button id="shopOpen2" class="ghostbtn">👕 Shop</button><button id="shareBtn" class="ghostbtn">📤 Share</button></div>
       <button id="simpleBtn2" class="ghostbtn hidden">Try simple mode</button>
       <textarea id="shareBox" class="hidden" readonly></textarea>
     </div>
@@ -176,8 +179,23 @@
   </div>
 </div>
 <div id="rotate" class="hidden">📱 Turn your phone upright to play</div>
-<script src="board.js?v=6"></script>
-<script src="game.js?v=5"></script>
+<script src="../shared/wallet.js?v=2"></script>
+<script src="../shared/shop.js?v=3"></script>
+<script src="look.js?v=2"></script>
+<script src="board.js?v=8"></script>
+<script src="game.js?v=6"></script>
+<script>
+  // winkel: kleding kopen met je punten (../shared/shop.js); spaarpot en outfit bij je naam (../shared/wallet.js)
+  (function () {
+    var ok = window.DDDShop && window.JumpBoard && window.JumpBoard.wallet && window.JumpLook;
+    if (!ok) { ['shopOpen', 'shopOpen2'].forEach(function (id) { document.getElementById(id).classList.add('hidden'); }); return; }
+    window.__jumpShop = window.DDDShop.init({
+      wallet: window.JumpBoard.wallet, look: window.JumpLook, root: document.getElementById('ui'),
+      screens: ['title', 'over'], openBtns: ['shopOpen', 'shopOpen2'], unit: '⭐',
+      preview2d: window.JumpLook.preview2d, is3d: function () { return !!window.__jumpR; },
+    });
+  })();
+</script>
 <script>
   // 3D (jump3d.js, three.js) bovenop de 2D-versie. Geen WebGL, eigen keuze "simple mode" of ?classic: alleen 2D.
   (function () {
@@ -198,7 +216,7 @@
   })();
 </script>
 <script type="module">
-  if (window.__jumpWant3d) import('./jump3d.js?v=6').catch(function (e) { if (window.console) console.warn('Ditch Jumper: 2D version', e); });
+  if (window.__jumpWant3d) import('./jump3d.js?v=7').catch(function (e) { if (window.console) console.warn('Ditch Jumper: 2D version', e); });
 </script>
 </body>
 </html>

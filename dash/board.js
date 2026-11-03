@@ -3,6 +3,10 @@
 (function () {
   'use strict';
   var API = 'https://polder-dash-scores.dddgames.workers.dev';
+  // lokaal testen met een eigen server: localStorage 'ddd.devapi' (alleen op 127.0.0.1 / localhost)
+  try { if (/^(127\.0\.0\.1|localhost)$/.test(location.hostname) && localStorage.getItem('ddd.devapi')) API = localStorage.getItem('ddd.devapi'); } catch (e) { /* */ }
+  // spaarpot en outfit bij je naam (../shared/wallet.js): elke run met een geclaimde naam gaat erin
+  var WAL = window.DDDWallet ? window.DDDWallet.create('dash') : null;
   var $ = function (id) { return document.getElementById(id); };
   var store = {
     get: function (k, d) { try { var v = localStorage.getItem('polderdash.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -147,9 +151,17 @@
     sending = true;
     $('lbPost').disabled = true;
     setMsg(data ? 'Posting…' : 'Checking…');
+    var sent = null;
+    // met een geclaimde naam: deze run bewaren en later insturen (geen internet of server even te druk)
+    function keepRun() {
+      var ok = sent && WAL && window.DDDWallet && store.get('claimed', false) === true && String(store.get('name', '')).toLowerCase() === String(name).trim().toLowerCase();
+      if (ok) { window.DDDWallet.queue(sent); data.done = true; tokenP = null; }
+      return !!ok;
+    }
     var p = data ? (tokenP || Promise.resolve(null)).then(function (token) {
       if (!token) throw new Error('offline');
-      return req('/score', { token: token, key: key, name: name, score: data.score, meters: data.meters, loot: data.loot, coins: data.coins });
+      sent = { game: 'dash', token: token, key: key, name: name, score: data.score, meters: data.meters, loot: data.loot, coins: data.coins };
+      return req('/score', sent);
     }) : req('/claim', { key: key, name: name });
     p.then(function (j) {
       done();
@@ -157,7 +169,11 @@
       flush();
     }).catch(function () {
       done();
-      if (!(data && run !== data)) setMsg("Couldn't reach the high scores. Check your internet.", 'lbbad');
+      // run niet aangekomen (geen internet): bewaren en later insturen, dan komen de punten alsnog in je spaarpot
+      var keep = keepRun();
+      // geen token (al geen internet toen de run begon): die run kan niet meer tellen
+      var lost = data && !sent && WAL && store.get('claimed', false) === true;
+      if (!(data && run !== data)) setMsg(keep ? 'No internet. Your run is saved and sent later.' : lost ? "No internet when this run started, so it can't be saved." : "Couldn't reach the high scores. Check your internet.", 'lbbad');
       flush();
     });
     function handle(j) {
@@ -176,9 +192,10 @@
         boardChanged = api.open;
         $('lbMeBtn').classList.remove('hidden');
         takeBest(j.best);
+        if (WAL) { if (j.wallet) WAL.set(j.wallet); else WAL.sync(); window.DDDWallet.flush(onQueued); }
         showForm(false);
         $('lbWho').textContent = j.name;
-        if (data) setMsg(rankText(j.ranks), 'lbgood');
+        if (data) setMsg(rankText(j.ranks) + (j.wallet ? '\n+' + data.score + ' ⭐ · you have ' + (window.DDDShop ? window.DDDShop.fmt(j.wallet.pts) : j.wallet.pts) + ' ⭐' : ''), 'lbgood');
         else setMsg(code ? 'Welcome back, ' + j.name + '!' : 'Your name is now ' + j.name + '.', 'lbgood');
         cache = {};
         if (api.open) load(tab);
@@ -189,7 +206,7 @@
         showForm(true, !!code);
         setMsg('Pick another name: 3–12 letters or numbers, nothing rude.', 'lbbad');
       } else if (j.status === 429) {
-        setMsg('Too many tries. Try again later.', 'lbbad');
+        setMsg(keepRun() ? 'Busy right now. Your run is saved and sent later.' : 'Too many tries. Try again later.', 'lbbad');
       } else if (data) {
         tokenP = null;
         setMsg("This run can't be posted. Try the next one!", 'lbbad');
@@ -328,11 +345,15 @@
       $('lbWho').textContent = name;
       if (!name) { showForm(true); setMsg('Put your score on the high scores!'); return; }
       showForm(false);
-      if (r.score > p.dayBest || r.score > p.weekBest || r.score > p.allBest) post(name);
+      // met een geclaimde naam gaat elke run in je spaarpot; anders alleen insturen als het een beste is
+      if (r.score > p.dayBest || r.score > p.weekBest || r.score > p.allBest || (WAL && store.get('claimed', false) === true)) post(name);
       else setMsg('Your best today: ' + p.dayBest + ' points');
     },
   };
+  api.wallet = WAL;
   window.DashBoard = api;
+  // runs van eerder (geen internet) alsnog insturen
+  function onQueued(g, w) { if (WAL && g === 'dash') WAL.set(w); }
 
   function init() {
     $('lbPost').addEventListener('click', submitForm);
@@ -372,5 +393,6 @@
     window.addEventListener('keydown', function (e) { if (api.open && (e.code === 'Escape' || e.code === 'Backspace')) { e.preventDefault(); closeBoard(); } });
   }
   prefetch();
+  if (WAL) { window.DDDWallet.flush(onQueued); WAL.sync(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

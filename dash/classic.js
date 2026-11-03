@@ -429,7 +429,7 @@
     show('newBest', isBest && s > 0);
     $('oBest').textContent = `Best: ${best.score} points · ${best.meters} m`;
     show('shareBox', false);
-    $('shareBtn').textContent = 'Share my score';
+    $('shareBtn').textContent = '📤 Share';
     show('hud', false);
     const over = $('over');
     over.classList.add('wait');
@@ -448,7 +448,7 @@
     const full = text + ' ' + url;
     try {
       await navigator.clipboard.writeText(full);
-      $('shareBtn').textContent = 'Copied! Paste it anywhere';
+      $('shareBtn').textContent = '✓ Copied!';
     } catch (e) {
       const box = $('shareBox');
       box.value = full; show('shareBox', true); box.focus(); box.select();
@@ -668,6 +668,8 @@
     const s = 1 + z * 0.28;
     ctx.scale(s, s);
     const ph = Math.sin(G.runPhase);
+    // kleding uit de winkel (look.js)
+    if (window.DashLook) { window.DashLook.farmer2d(ctx, window.DashLook.wear, z < 0.1 ? ph : 0); ctx.restore(); return; }
     // benen (laarzen)
     ctx.fillStyle = '#1b1f22';
     if (z < 0.1) {

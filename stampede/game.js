@@ -924,7 +924,7 @@ function gameOver() {
   overAt = performance.now();
   show('over');
   ui.over.classList.add('wait'); setTimeout(() => ui.over.classList.remove('wait'), 900);
-  if (board()) board().runEnd({ meters: m });
+  if (board()) board().runEnd({ meters: m, coins, gems });
 }
 
 // ---------- particles ----------
@@ -1139,6 +1139,7 @@ function menuStats() {
   else if (!hasStyle(animalKey, styleKey)) { playBtn.disabled = gemBank < sx.gems; playBtn.textContent = (playBtn.disabled ? 'NEED 💎 ' : 'UNLOCK 💎 ') + sx.gems; playBtn.dataset.do = 'style'; }
   else if (!animalReady(animalKey)) { playBtn.textContent = 'LOADING…'; playBtn.disabled = true; playBtn.dataset.do = ''; }
   else { playBtn.textContent = 'RIDE'; playBtn.dataset.do = 'ride'; }
+  if (buying) { playBtn.disabled = true; playBtn.textContent = 'BUYING…'; }
   // keep the chosen card and style in view in the scroll rows
   for (const row of [$('pick'), $('styles')]) { const on = row.querySelector('.on'); if (on) row.scrollLeft = Math.max(0, on.offsetLeft - row.offsetLeft - (row.clientWidth - on.offsetWidth) / 2); }
 }
@@ -1147,13 +1148,13 @@ $('pick').addEventListener('click', e => {
   const b = e.target.closest('.animal'); if (!b) return; b.blur();
   const k = b.dataset.a; if (k === animalKey) return;
   setAnimal(k, pickedStyle[k] || STYLES[k][0].key);
-  if (owned.includes(k)) store.set('animal', k);
+  if (owned.includes(k)) { store.set('animal', k); stableWear(); }
   menuStats(); sound('lane');
 });
 $('styles').addEventListener('click', e => {
   const b = e.target.closest('.style'); if (!b) return; b.blur();
   setAnimal(animalKey, b.dataset.s);
-  if (hasStyle(animalKey, styleKey)) { pickedStyle[animalKey] = styleKey; store.set('style', pickedStyle); }
+  if (hasStyle(animalKey, styleKey)) { pickedStyle[animalKey] = styleKey; store.set('style', pickedStyle); if (owned.includes(animalKey)) stableWear(); }
   menuStats(); sound('lane');
 });
 let buyAt = 0;
@@ -1162,6 +1163,7 @@ playBtn.addEventListener('click', () => {
   if (performance.now() - buyAt < 450) return;   // a double tap on BUY should not start a run
   const d = playBtn.dataset.do;
   if (d === 'buy' || d === 'style') buyAt = performance.now();
+  if ((d === 'buy' || d === 'style') && named()) { serverBuy(d); return; }
   if (d === 'buy') {
     const bank = store.get('coins', 0), price = ANIMALS[animalKey].price; if (bank < price) return;
     store.set('coins', bank - price); owned.push(animalKey); store.set('owned', owned); store.set('animal', animalKey);
@@ -1173,6 +1175,87 @@ playBtn.addEventListener('click', () => {
   } else if (d === 'ride') { startRun(); return; }
   menuStats();
 });
+// ---------- stable saved with your name (../shared/wallet.js) ----------
+// With a name on the high scores, your coins, gems, animals and styles live on the server: the same on every phone and PC.
+// The first time on a device, what it already had goes along (once). Without a name everything stays on this device, like before.
+const WAL = board() && board().wallet;
+let importing = false, buying = false, stableShown = false;
+function named() { return !!(WAL && WAL.who() && WAL.state && store.get('imported', false)); }
+function fromWallet(w) {
+  if (!w) return;
+  store.set('coins', w.coins); store.set('gems', w.gems);
+  owned.length = 0;
+  for (const k of w.animals) if (ANIMALS[k] && !owned.includes(k)) owned.push(k);
+  if (!owned.includes('horse')) owned.unshift('horse');
+  store.set('owned', owned);
+  for (const k of Object.keys(ownedStyles)) delete ownedStyles[k];
+  for (const k of Object.keys(w.styles || {})) if (STYLES[k]) ownedStyles[k] = w.styles[k].slice();
+  store.set('styles', ownedStyles);
+  for (const k of Object.keys(w.pick || {})) if (STYLES[k] && hasStyle(k, w.pick[k])) pickedStyle[k] = w.pick[k];
+  store.set('style', pickedStyle);
+  // the animal you ride: taken from the server once, when the stable arrives, and only in the stable (never during a ride).
+  // Later replies never swap the animal or style you are looking at.
+  if (st.mode === 'menu') {
+    if (!stableShown) {
+      stableShown = true;
+      const a = owned.includes(w.animal) ? w.animal : (owned.includes(animalKey) ? animalKey : 'horse');
+      const sk = pickedStyle[a] || STYLES[a][0].key;
+      if (a !== animalKey || (owned.includes(animalKey) && sk !== styleKey && hasStyle(a, sk))) setAnimal(a, sk);
+      store.set('animal', a);
+    }
+    menuStats();
+  } else if (st.mode === 'over') overInfo(lastRun);
+}
+function importLocal(tries = 0) {
+  // nothing here yet (a new phone or PC): nothing to take along, just show the stable from the server
+  const hasLocal = store.get('coins', 0) > 0 || store.get('gems', 0) > 0 || owned.length > 1 || Object.keys(ownedStyles).some(k => (ownedStyles[k] || []).length > 0);
+  if (!hasLocal) { store.set('imported', true); store.set('preCredit', null); return WAL.sync(); }
+  importing = true;
+  // runs the server already credited before the stable came along (board.js keeps count) are not counted twice
+  const pre = store.get('preCredit', null) || {};
+  const local = { coins: Math.max(0, store.get('coins', 0) - (pre.coins | 0)), gems: Math.max(0, store.get('gems', 0) - (pre.gems | 0)), animals: owned.slice(), styles: ownedStyles };
+  const keepA = owned.includes(animalKey) ? animalKey : 'horse', pick = Object.assign({}, pickedStyle);   // the animal and styles you picked here
+  return WAL.sync({ local }).then(j => {
+    if (!j || !j.ok) { importing = false; return; }   // no internet: try again next time
+    if (!j.imported && j.reason === 'busy') {
+      // something else changed at the same moment: try again (and keep this device's stable until it worked)
+      if (tries < 3) setTimeout(() => importLocal(tries + 1), 600); else importing = false;
+      return;
+    }
+    importing = false;
+    store.set('imported', true); store.set('preCredit', null);
+    if (j.imported) WAL.wear({ animal: keepA, pick });
+    else if (j.reason === 'max') banner('Your name already has stables from 5 devices. Showing the saved one.', 3200);
+    fromWallet(WAL.state);
+  });
+}
+function onWallet(w) {
+  if (!w) return;
+  // first time with a name on this device: take what is here along before showing the server's stable
+  if (!store.get('imported', false)) { if (!importing) importLocal(); return; }
+  fromWallet(w);
+}
+function stableWear() {
+  if (!named()) return;
+  const pick = {}; pick[animalKey] = pickedStyle[animalKey] || STYLES[animalKey][0].key;
+  WAL.wear({ animal: animalKey, pick });
+}
+function serverBuy(d) {
+  if (buying) return;
+  const item = d === 'buy' ? animalKey : animalKey + '.' + styleKey;
+  const what = d === 'buy' ? ANIMALS[animalKey].name + ' is yours!' : styleOf(animalKey, styleKey).name + ' unlocked!';
+  buying = true; menuStats();
+  WAL.buy(item).then(j => {
+    buying = false;
+    if (j.ok) { sound('gem'); banner(what, 1400); }
+    else banner(j.error === 'offline' ? 'No internet. Try again later.' : j.error === 'poor' ? 'Not enough yet!' : 'Something went wrong. Try again.', 1700);
+    menuStats();
+  });
+}
+if (WAL) {
+  WAL.on(onWallet);
+  if (WAL.who()) { if (!store.get('imported', false)) importLocal(); else WAL.sync(); }
+}
 $('againBtn').addEventListener('click', () => { unlockAudio(); startRun(); });
 $('menuBtn').addEventListener('click', toMenu);
 $('quitBtn').addEventListener('click', toMenu);

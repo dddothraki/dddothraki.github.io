@@ -247,6 +247,140 @@ function eye(color, size) {
   return s;
 }
 
+// ---------- kleding uit de winkel (look.js) ----------
+// De boer is één model met één textuur. De jas (beige, ook de capuchon) en de laarzen kleuren we om in een kopie van die textuur:
+// jas = beige pixels (kleurtoon 24-50 graden; huid is roziger, ~18), laarzen = de driehoekjes onderaan het model (lager dan 0,5).
+// Hoeden en wat hij vasthoudt zijn losse vormpjes op het model (maten in model-eenheden: model is 3,56 hoog).
+const look3 = { key: '', paint: '', ready: false, acc: null };
+function prepLook() {
+  const m = models.farmer, img = m.mat.map && m.mat.map.image;
+  if (!img || !img.width) return;
+  const W = img.width, H = img.height;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+  cx.drawImage(img, 0, 0);
+  const base = cx.getImageData(0, 0, W, H);
+  // laarzen: de driehoekjes onderaan, in uv-ruimte getekend (met een randje tegen naden)
+  const mc = document.createElement('canvas'); mc.width = W; mc.height = H;
+  const mx = mc.getContext('2d', { willReadFrequently: true });
+  mx.fillStyle = mx.strokeStyle = '#fff'; mx.lineWidth = 3; mx.lineJoin = 'round';
+  const pos = m.geo.attributes.position.array, uv = m.geo.attributes.uv.array, idx = m.geo.index.array;
+  for (let i = 0; i < idx.length; i += 3) {
+    const a = idx[i], b = idx[i + 1], c = idx[i + 2];
+    if ((pos[a * 3 + 1] + pos[b * 3 + 1] + pos[c * 3 + 1]) / 3 >= 0.5) continue;
+    mx.beginPath(); mx.moveTo(uv[a * 2] * W, uv[a * 2 + 1] * H); mx.lineTo(uv[b * 2] * W, uv[b * 2 + 1] * H); mx.lineTo(uv[c * 2] * W, uv[c * 2 + 1] * H);
+    mx.closePath(); mx.fill(); mx.stroke();
+  }
+  const boots = mx.getImageData(0, 0, W, H).data, d = base.data;
+  // per pixel: 0 = laten, 1 = jas, 2 = laars; en de helderheid, zodat plooien en schaduw blijven
+  const kind = new Uint8Array(W * H), lum = new Float32Array(W * H);
+  for (let q = 0; q < W * H; q++) {
+    const r = d[q * 4] / 255, g = d[q * 4 + 1] / 255, bl = d[q * 4 + 2] / 255;
+    const hi = Math.max(r, g, bl), lo = Math.min(r, g, bl), l = (hi + lo) / 2, ch = hi - lo;
+    lum[q] = l;
+    if (boots[q * 4] > 127) { kind[q] = 2; continue; }
+    if (ch < 0.06) continue;
+    const sat = ch / (1 - Math.abs(2 * l - 1) + 1e-6);
+    let h = hi === r ? ((g - bl) / ch) % 6 : hi === g ? (bl - r) / ch + 2 : (r - g) / ch + 4;
+    h *= 60; if (h < 0) h += 360;
+    if (h >= 24 && h <= 50 && sat > 0.25 && l > 0.15) kind[q] = 1;
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace; tex.flipY = false; tex.anisotropy = 4;
+  Object.assign(look3, { cx, base, kind, lum, W, H, tex, ready: true });
+  m.mat.map = tex; m.mat.needsUpdate = true;
+}
+function paintFarmer(coat, boots) {
+  const { cx, base, kind, lum, W, H, tex } = look3;
+  const out = cx.createImageData(W, H), o = out.data, d = base.data;
+  const rgb = c => (c == null ? null : [(c >> 16) & 255, (c >> 8) & 255, c & 255]);
+  const tc = rgb(coat), tb = rgb(boots);
+  for (let q = 0, i = 0; q < W * H; q++, i += 4) {
+    const k = kind[q], t = k === 1 ? tc : k === 2 ? tb : null;
+    if (!t) { o[i] = d[i]; o[i + 1] = d[i + 1]; o[i + 2] = d[i + 2]; o[i + 3] = 255; continue; }
+    // schaduw en plooien houden; laarzen zijn heel donker, daar telt de kleur zelf meer mee
+    const f = k === 1 ? lum[q] / 0.66 : 0.6 + 0.4 * lum[q] / 0.33;
+    o[i] = Math.min(255, t[0] * f); o[i + 1] = Math.min(255, t[1] * f); o[i + 2] = Math.min(255, t[2] * f); o[i + 3] = 255;
+  }
+  cx.putImageData(out, 0, 0);
+  tex.needsUpdate = true;
+}
+function makeAccessories(root) {
+  const std = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.7, metalness: 0 }, o || {}));
+  const add = (g, geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
+  const cyl = (r, h, seg = 18, open = false) => new THREE.CylinderGeometry(r, r, h, seg, 1, open);
+  const X = 0.08, Z = 0;            // midden van de capuchon (boven op 3,56)
+  const HX = -1.42, HY = 1.9, HZ = -0.08; // linkerhand (de rechter houdt de zaklamp)
+  const hats = {}, hands = {};
+  const grp = (k, store, fn) => { const g = new THREE.Group(); fn(g); g.visible = false; g.traverse(o => { if (o.isMesh) o.castShadow = true; }); root.add(g); store[k] = g; };
+  grp('cap', hats, g => {
+    const m = std(0x2f5a3a);
+    const dome = add(g, new THREE.SphereGeometry(1, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), m, X, 3.25, Z); dome.scale.set(0.5, 0.36, 0.56);
+    const visor = add(g, new THREE.BoxGeometry(0.52, 0.04, 0.36), m, X, 3.27, Z - 0.66); visor.rotation.x = 0.12;
+  });
+  grp('tophat', hats, g => {
+    const m = std(0x161618, { roughness: 0.45 });
+    add(g, cyl(0.72, 0.05), m, X, 3.3, Z);
+    add(g, cyl(0.47, 0.78), m, X, 3.71, Z);
+    add(g, cyl(0.48, 0.11), std(0xb02a22), X, 3.39, Z);
+  });
+  grp('cowboy', hats, g => {
+    const m = std(0x8a5a2b);
+    const brim = add(g, cyl(0.8, 0.05, 22), m, X, 3.28, Z); brim.scale.z = 0.9;
+    for (const sx of [-1, 1]) { const roll = add(g, new THREE.BoxGeometry(0.14, 0.05, 1.1), m, X + sx * 0.76, 3.34, Z); roll.rotation.z = sx * 0.55; }
+    const top = add(g, cyl(0.45, 0.44), m, X, 3.52, Z); top.scale.z = 1.1;
+    add(g, new THREE.BoxGeometry(0.08, 0.06, 0.6), std(0x6a4220), X, 3.75, Z);
+    const band = add(g, cyl(0.46, 0.08), std(0x3a2410), X, 3.35, Z); band.scale.z = 1.1;
+  });
+  grp('pumpkin', hats, g => {
+    const m = std(0xe8741a, { roughness: 0.55, emissive: 0x2a1000 });
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * Math.PI;
+      const lobe = add(g, new THREE.SphereGeometry(1, 16, 12), m, X, 3.02, Z); lobe.scale.set(0.36, 0.56, 0.68); lobe.rotation.y = a;
+    }
+    add(g, cyl(0.07, 0.22, 8), std(0x3f6a22), X, 3.64, Z);
+    // gezicht (voorkant = -z): oplichtende ogen en mond
+    const glow = new THREE.MeshBasicMaterial({ color: 0xffc040 });
+    for (const sx of [-1, 1]) { const e = add(g, new THREE.ConeGeometry(0.1, 0.14, 3), glow, X + sx * 0.2, 3.12, Z - 0.66); e.rotation.x = -Math.PI / 2; e.rotation.y = Math.PI; }
+    add(g, new THREE.BoxGeometry(0.36, 0.07, 0.05), glow, X, 2.86, Z - 0.66);
+  });
+  grp('crown', hats, g => {
+    const gold = std(0xf6c431, { metalness: 0.85, roughness: 0.3, emissive: 0x4a3000 });
+    const band = add(g, cyl(0.47, 0.24, 24, true), gold, X, 3.42, Z); band.material.side = THREE.DoubleSide;
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; add(g, new THREE.ConeGeometry(0.1, 0.3, 8), gold, X + Math.cos(a) * 0.44, 3.69, Z + Math.sin(a) * 0.44); }
+    add(g, new THREE.SphereGeometry(0.07, 10, 8), std(0xe8413a, { emissive: 0x6a0000, roughness: 0.2 }), X, 3.42, Z - 0.48);
+    for (const sx of [-1, 1]) add(g, new THREE.SphereGeometry(0.05, 10, 8), std(0x5ab4ee, { emissive: 0x0a3050, roughness: 0.2 }), X + sx * 0.34, 3.42, Z - 0.34);
+  });
+  grp('cane', hands, g => {
+    const wood = std(0x6a4220);
+    add(g, cyl(0.05, 1.86, 8), wood, HX, HY - 0.93, HZ);
+    const hook = add(g, new THREE.TorusGeometry(0.14, 0.05, 6, 12, Math.PI), wood, HX + 0.14, HY, HZ);
+  });
+  grp('fork', hands, g => {
+    const wood = std(0x8a5a2b), metal = std(0xb0b6bc, { metalness: 0.7, roughness: 0.35 });
+    add(g, cyl(0.045, 3.1, 8), wood, HX, 1.85, HZ);
+    add(g, new THREE.BoxGeometry(0.46, 0.06, 0.06), metal, HX, 3.42, HZ);
+    for (const dx of [-0.19, 0, 0.19]) { add(g, cyl(0.025, 0.5, 6), metal, HX + dx, 3.68, HZ); add(g, new THREE.ConeGeometry(0.025, 0.08, 6), metal, HX + dx, 3.97, HZ); }
+  });
+  return { hats, hands };
+}
+// aanpassen als look.js iets anders laat dragen (ook tijdens het passen in de winkel)
+function applyLook() {
+  const L = window.DashLook;
+  if (!L || !look3.ready || !look3.acc) return;
+  const w = L.wear, k = w.coat + '|' + w.hat + '|' + w.boots + '|' + w.hand;
+  if (k === look3.key) return;
+  look3.key = k;
+  const pk = w.coat + '|' + w.boots;
+  if (pk !== look3.paint) {
+    look3.paint = pk;
+    const c = L.COAT3[w.coat], b = L.BOOTS3[w.boots];
+    paintFarmer(c === undefined ? null : c, b === undefined ? null : b);
+  }
+  for (const h in look3.acc.hats) look3.acc.hats[h].visible = h === w.hat;
+  for (const h in look3.acc.hands) look3.acc.hands[h].visible = h === w.hand;
+}
+
 // speler
 let player = null;
 let corn = null, CORN_N = 9, CORN_GAP = 7.5; // 2 rijen; maïs is zwaar (6000 driehoekjes per plant)
@@ -254,6 +388,7 @@ const towers = [];
 function buildWorldModels() {
   player = makeModel('farmer', 2.8);
   scene.add(player);
+  look3.acc = makeAccessories(player.userData.mesh);
   // maïs als één InstancedMesh (veel planten, weinig rekenwerk)
   corn = new THREE.InstancedMesh(models.corn.geo, models.corn.mat, CORN_N * 2);
   corn.castShadow = false;
@@ -641,7 +776,7 @@ function gameOver() {
   show('newBest', isBest && s > 0);
   $('oBest').textContent = `Best: ${best.score} points · ${best.meters} m`;
   show('shareBox', false);
-  $('shareBtn').textContent = 'Share my score';
+  $('shareBtn').textContent = '📤 Share';
   show('hud', false);
   const over = $('over');
   over.classList.add('wait');
@@ -657,7 +792,7 @@ async function share() {
   const full = text + ' ' + url;
   try {
     await navigator.clipboard.writeText(full);
-    $('shareBtn').textContent = 'Copied! Paste it anywhere';
+    $('shareBtn').textContent = '✓ Copied!';
   } catch (e) {
     const box = $('shareBox');
     box.value = full; show('shareBox', true); box.focus(); box.select();
@@ -997,8 +1132,17 @@ function render(dt = 0) {
 
   // camera schuin achter de speler
   const shake = G.shake;
-  camera.position.set(pxw * 0.45 + rnd(-1, 1) * shake * 0.5, 8.6 + z * 1.0 + rnd(-1, 1) * shake * 0.4, 10.5);
-  camera.lookAt(pxw * 0.6 - 0.6, -0.6 + z * 1.0, -20);
+  applyLook();
+  if (window.DashLook && window.DashLook.shop) {
+    // winkel: de boer draait rond en de camera kijkt van dichtbij; hij staat in de bovenste helft (onderin zit de winkel)
+    player.rotation.set(0, performance.now() / 1400, 0);
+    player.position.y = 0;
+    camera.position.set(pxw, 3.0, 5.6);
+    camera.lookAt(pxw, 0, 0);
+  } else {
+    camera.position.set(pxw * 0.45 + rnd(-1, 1) * shake * 0.5, 8.6 + z * 1.0 + rnd(-1, 1) * shake * 0.4, 10.5);
+    camera.lookAt(pxw * 0.6 - 0.6, -0.6 + z * 1.0, -20);
+  }
   renderer.render(scene, camera);
 
   // banners en rode flits (DOM)
@@ -1081,7 +1225,7 @@ function frame(now) {
   if (mode !== 'loading' && !contextLost) {
     if (!paused && mode !== 'over' && !hold) update(dt);
     // bij pauze en op het eindscherm hoeft het beeld bijna niet te veranderen: spaart de batterij
-    const still = paused || (mode === 'over' && player && Math.abs(player.position.y) < 0.01);
+    const still = !(window.DashLook && window.DashLook.shop) && (paused || (mode === 'over' && player && Math.abs(player.position.y) < 0.01));
     if (!still || now - lastDraw > 500) { render(paused || mode === 'over' ? 0 : dt); lastDraw = now; }
     hud();
   }
@@ -1101,6 +1245,7 @@ window.__dash3dReadyPending = true;
 newGame();
 loadModels(p => { playBtn.textContent = `Loading… ${Math.round(p * 100)}%`; }).then(() => {
   buildWorldModels();
+  try { prepLook(); applyLook(); } catch (e) { if (window.console) console.warn('Polder Dash: outfit', e); }
   playBtn.disabled = false;
   playBtn.textContent = '▶ RUN';
   mode = 'title';

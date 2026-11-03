@@ -654,6 +654,7 @@
   function drawPole() {
     var sg = poleSeg();
     if (!sg) return;
+    if (window.JumpLook) { window.JumpLook.pole2d(ctx, window.JumpLook.wear.pole, sg[0] - cam, sg[1], sg[2] - cam, sg[3]); return; }
     ctx.strokeStyle = '#8a5a2b'; ctx.lineWidth = 3; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(sg[0] - cam, sg[1]); ctx.lineTo(sg[2] - cam, sg[3]); ctx.stroke();
   }
@@ -687,16 +688,19 @@
   };
   function drawFarmer() {
     var x = p.x - cam, y = p.y;
-    var skin = '#f2c9a0', shirt = '#e8413a', overall = '#2f6fd1', cap = '#ff7a1a', clogC = '#ffd34d';
+    var L = window.JumpLook, wear = L ? L.wear : null;   // kleding uit de winkel (look.js)
+    var skin = '#f2c9a0', shirt = L ? L.colors().shirt : '#e8413a', overall = '#2f6fd1', cap = '#ff7a1a', clogC = '#ffd34d';
     ctx.save(); ctx.translate(x, y);
     ctx.lineCap = 'round';
     if (mode === 'swim') {
       // alleen het hoofd steekt boven water, met eendenkroos en een kikker
       var bob = Math.sin(time * 4) * 1.5;
       ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(0, -10 + bob, 7, 0, 7); ctx.fill();
-      ctx.fillStyle = cap; ctx.fillRect(-7, -17 + bob, 14, 4);
-      ctx.fillStyle = '#5bbf3a'; ctx.beginPath(); ctx.ellipse(1, -19 + bob, 5, 3, 0, 0, 7); ctx.fill();
-      ctx.fillStyle = '#000'; ctx.fillRect(-1, -21 + bob, 1.4, 1.4); ctx.fillRect(3, -21 + bob, 1.4, 1.4);
+      var fy = 0;   // kikker zit bovenop de hoed
+      if (L) { L.hat2d(ctx, wear.hat, 0, -10 + bob); fy = 9.6 - L.hatTop(wear.hat); }
+      else { ctx.fillStyle = cap; ctx.fillRect(-7, -17 + bob, 14, 4); }
+      ctx.fillStyle = '#5bbf3a'; ctx.beginPath(); ctx.ellipse(1, -19 + bob + fy, 5, 3, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#000'; ctx.fillRect(-1, -21 + bob + fy, 1.4, 1.4); ctx.fillRect(3, -21 + bob + fy, 1.4, 1.4);
       ctx.fillStyle = '#000'; ctx.fillRect(-3, -11 + bob, 1.5, 1.5); ctx.fillRect(2, -11 + bob, 1.5, 1.5);
       ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, -6 + bob, 2, 0, Math.PI, true); ctx.stroke();
       ctx.fillStyle = '#7cc35b';
@@ -750,9 +754,9 @@
     if (mode === 'fall' || mode === 'flop' || tee) { ctx.beginPath(); ctx.arc(4, -35, 1.8, 0, 7); ctx.fill(); }
     else { ctx.fillRect(2.5, -35.5, 3, 1); }
     ctx.fillStyle = '#c98a5a'; ctx.fillRect(6.5, -38.5, 2, 2); // neus
-    // pet
-    ctx.fillStyle = cap; ctx.beginPath(); ctx.arc(1, -41, 6.6, Math.PI, 0); ctx.fill();
-    ctx.fillRect(4, -42, 7, 2.2);
+    // pet (of de hoed uit de winkel)
+    if (L) L.hat2d(ctx, wear.hat, 1, -38);
+    else { ctx.fillStyle = cap; ctx.beginPath(); ctx.arc(1, -41, 6.6, Math.PI, 0); ctx.fill(); ctx.fillRect(4, -42, 7, 2.2); }
     ctx.restore();
   }
 
