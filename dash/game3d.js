@@ -299,16 +299,18 @@ function prepLook() {
   tex.colorSpace = THREE.SRGBColorSpace; tex.flipY = false; tex.anisotropy = 4;
   Object.assign(look3, { cx, base, kind, lum, W, H, tex, ready: true });
   m.mat.map = tex;
-  // benen laten lopen: het model is één stuk, dus de onderste hoekpunten (niet de jas) draaien in de shader om de heup,
-  // het linker- en rechterbeen tegengesteld. legw = hoeveel een hoekpunt meedraait (0 bij de heup, 1 vanaf de knie).
+  // benen laten lopen: het model is één stuk, dus de onderste hoekpunten (niet de jas) draaien in de shader om de heup.
+  // In de renhouding staat het ene been achter (z > 0,15) en het andere voor (z < -0,06): die draaien tegengesteld.
+  // (Links/rechts op x gaat mis: de voorste laars steekt over het midden, dan scheurt hij.)
+  // legw = hoeveel en welke kant een hoekpunt meedraait: 0 bij de heup en in het midden, ±1 vanaf de knie.
   const pa = m.geo.attributes.position, legw = new Float32Array(pa.count);
   for (let v = 0; v < pa.count; v++) {
     const y = pa.getY(v);
     if (y >= 1.0) continue;
     const q = Math.min(H - 1, Math.max(0, Math.floor(uv[v * 2 + 1] * H))) * W + Math.min(W - 1, Math.max(0, Math.floor(uv[v * 2] * W)));
     if (kind[q] === 1) continue; // jas loopt niet mee
-    const t = Math.min(1, (1.0 - y) / 0.35);
-    legw[v] = t * t * (3 - 2 * t);
+    const t = Math.min(1, (1.0 - y) / 0.35), side = Math.max(-1, Math.min(1, pa.getZ(v) / 0.12));
+    legw[v] = t * t * (3 - 2 * t) * side;
   }
   m.geo.setAttribute('legw', new THREE.BufferAttribute(legw, 1));
   const uLeg = { value: 0 };
@@ -317,7 +319,7 @@ function prepLook() {
     sh.uniforms.uLeg = uLeg;
     sh.vertexShader = 'attribute float legw;\nuniform float uLeg;\n' + sh.vertexShader
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
-  float legA = uLeg * legw * (position.x < 0.0 ? 1.0 : -1.0), legC = cos(legA), legS = sin(legA);
+  float legA = uLeg * legw, legC = cos(legA), legS = sin(legA);
   objectNormal = vec3(objectNormal.x, objectNormal.y * legC - objectNormal.z * legS, objectNormal.y * legS + objectNormal.z * legC);`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
   { vec3 legQ = transformed - vec3(0.0, 1.0, 0.0);
@@ -1172,7 +1174,9 @@ function render(dt = 0) {
   applyLook();
   // benen: zwaaien bij het rennen (minder in de lucht), stil als hij valt; in de winkel rent hij op de plaats
   const shopOn = !!(window.DashLook && window.DashLook.shop);
-  if (look3.uLeg) look3.uLeg.value = shopOn ? Math.sin(performance.now() / 110) * 0.5 : (mode === 'play' || mode === 'title') ? Math.sin(G.runPhase) * 0.5 * (1 - z) : 0;
+  // de renhouding staat al gespreid: vooral naar elkaar toe zwaaien (tot 0,45) en maar een beetje verder open (0,2)
+  const legSwing = ph => 0.12 + 0.33 * Math.sin(ph);
+  if (look3.uLeg) look3.uLeg.value = shopOn ? legSwing(performance.now() / 110) : (mode === 'play' || mode === 'title') ? legSwing(G.runPhase) * (1 - z) : 0;
   if (shopOn) {
     // winkel: de boer draait rond en de camera kijkt van dichtbij; hij staat in de bovenste helft (onderin zit de winkel)
     player.rotation.set(0, performance.now() / 1400, 0);
