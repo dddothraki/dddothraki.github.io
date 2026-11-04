@@ -303,6 +303,47 @@ export class Cpu {
   }
 }
 
+// ---------- tegenstander online: een mens op een ander apparaat ----------
+// Zijn eigen spel rekent zijn renner (botsingen, spullen); hier komt ~10× per seconde zijn plek binnen (apply).
+// Daartussen schatten we waar hij is (doorrennen op zijn snelheid en langzaam bijsturen), zodat hij vloeiend loopt.
+// Zelfde velden als Cpu, zodat game3d.js hem op dezelfde manier tekent.
+export class NetRival {
+  constructor(laneX, lane = 2) {
+    this.laneX = laneX; this.tag = 'cpu';
+    Object.assign(this, {
+      dist: 0, speed: 0, netSpeed: 0, lane, px: laneX(lane), jt: -1, stunT: 0, graceT: 0, boostT: 0,
+      finished: false, finishT: 0, quit: false, hits: 0, items: 0, runPhase: 0, tD: 0, tAt: 0, seen: false,
+    });
+    this.incoming = []; // geesten die jij hem stuurde (alleen om te laten zien; raken doet zijn eigen spel)
+  }
+  apply(m, now) {
+    this.seen = true; this.tD = m.d; this.tAt = now; this.netSpeed = m.s;
+    this.lane = Math.max(0, Math.min(2, m.l | 0));
+    const j = m.j >= 0 ? m.j / 100 : -1;
+    if (j < 0) this.jt = -1; else if (this.jt < 0 || Math.abs(this.jt - j) > 0.25) this.jt = j;
+    // vlaggen gelden tot het volgende bericht (en nog even, als er een wegvalt)
+    this.stunT = m.x & 1 ? 0.25 : 0; this.boostT = m.x & 2 ? 0.25 : 0; this.graceT = m.x & 4 ? 0.25 : 0;
+  }
+  step(dt, env) {
+    const now = env && typeof env.now === 'number' ? env.now : Date.now();
+    if (this.seen) {
+      // langer dan 0,6 s niets gehoord (verbinding hapert): niet eindeloos doorschatten, maar uitlopen
+      const age = Math.min(0.6, Math.max(0, (now - this.tAt) / 1000));
+      this.speed = now - this.tAt < 600 ? this.netSpeed : Math.max(0, this.speed - 600 * dt);
+      this.dist += this.speed * dt;
+      const err = this.tD + this.netSpeed * age - this.dist;
+      if (Math.abs(err) > 400) this.dist += err; else this.dist += err * Math.min(1, dt * 5);
+    }
+    const tx = this.laneX(this.lane), dx = tx - this.px, st = 1500 * dt;
+    this.px = Math.abs(dx) <= st ? tx : this.px + Math.sign(dx) * st;
+    if (this.jt >= 0) { this.jt += dt / JUMP_TIME; if (this.jt >= 1) this.jt = -1; }
+    if (this.speed > 1) this.runPhase += dt * (8 + this.speed / 40);
+    this.stunT = Math.max(0, this.stunT - dt); this.graceT = Math.max(0, this.graceT - dt); this.boostT = Math.max(0, this.boostT - dt);
+    for (const o of this.incoming) o.d -= 40 * dt;
+    for (let i = this.incoming.length - 1; i >= 0; i--) if (this.incoming[i].d < this.dist - 200) this.incoming.splice(i, 1);
+  }
+}
+
 export function fmtTime(s) {
   const t = Math.round((s >= 0 ? s : 0) * 10), m = Math.floor(t / 600), r = (t % 600) / 10;
   return m + ':' + (r < 10 ? '0' : '') + r.toFixed(1);
