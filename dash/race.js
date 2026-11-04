@@ -362,6 +362,7 @@ export class NetRival {
     if (j < 0) this.jt = -1; else if (this.jt < 0 || Math.abs(this.jt - j) > 0.25) this.jt = j;
     // vlaggen gelden tot het volgende bericht (en nog even, als er een wegvalt)
     this.stunT = m.x & 1 ? 0.25 : 0; this.boostT = m.x & 2 ? 0.25 : 0; this.graceT = m.x & 4 ? 0.25 : 0;
+    if (m.x & 1) this.stunAt = now;
   }
   step(dt, env) {
     const now = env && typeof env.now === 'number' ? env.now : Date.now();
@@ -378,7 +379,15 @@ export class NetRival {
     if (this.jt >= 0) { this.jt += dt / JUMP_TIME; if (this.jt >= 1) this.jt = -1; }
     if (this.speed > 1) this.runPhase += dt * (8 + this.speed / 40);
     this.stunT = Math.max(0, this.stunT - dt); this.graceT = Math.max(0, this.graceT - dt); this.boostT = Math.max(0, this.boostT - dt);
-    for (const o of this.incoming) o.d -= 40 * dt;
+    for (const o of this.incoming) {
+      o.d -= 40 * dt;
+      o.x += Math.max(-GHOST_TRACK * dt, Math.min(GHOST_TRACK * dt, this.px - o.x));
+      // even later dan zijn spel het weet: struikelde hij net, dan was ze raak
+      if (!o.passed && o.d < this.dist - 120) {
+        o.passed = true;
+        if (now - (this.stunAt || 0) < 700) { if (env && env.hit) env.hit(this, 'hit', o); } else if (env && env.dodged) env.dodged(this, o);
+      }
+    }
     for (let i = this.incoming.length - 1; i >= 0; i--) if (this.incoming[i].d < this.dist - 200) this.incoming.splice(i, 1);
   }
 }

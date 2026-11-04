@@ -37,10 +37,10 @@
     show('olRoom', view === 'room');
     if (view === 'join') { $('olCode').value = ''; setTimeout(function () { $('olCode').focus(); }, 50); }
   }
-  function closeScreen() {
+  function closeScreen(starting) {
     show('online', false);
     api.open = false;
-    if (api.onClose) api.onClose(backTo || []);
+    if (!starting && api.onClose) api.onClose(backTo || []);
     backTo = null;
   }
   function draw() {
@@ -110,7 +110,7 @@
         racing = true;
         var offset = m.now - Date.now(); // klok van de server min de eigen klok
         var other = room && room.players[1 - you] || { name: 'Friend', wear: null };
-        closeScreen();
+        closeScreen(true);
         if (g) g.start({ seed: m.seed, start: m.startAt - offset, slot: you, round: m.round, friend: { name: other.name || 'Friend', wear: other.wear } });
         break;
       }

@@ -133,6 +133,16 @@
     border-radius:50%; padding:0; background:rgba(0,0,0,.55); border:2px solid var(--gold); color:#fff; display:flex; flex-direction:column;
     align-items:center; justify-content:center; box-shadow:0 0 18px rgba(242,193,78,.45); }
   #itemBtn b { font-size:34px; line-height:1; }
+  /* RACE online (online.js) */
+  #rmOnline { width:100%; max-width:290px; }
+  .olbox { display:flex; flex-direction:column; align-items:center; gap:10px; width:100%; max-width:290px; }
+  .olbox > button { width:100%; }
+  .olcode { font-size:44px; line-height:1; letter-spacing:6px; color:var(--gold); font-weight:900; }
+  .olrow { display:flex; gap:8px; width:100%; }
+  #olCode { flex:1; min-width:0; font:inherit; font-size:22px; letter-spacing:4px; text-transform:uppercase; padding:10px 12px; border-radius:10px;
+    border:1px solid rgba(255,255,255,.3); background:rgba(0,0,0,.45); color:#fff; -webkit-user-select:text; user-select:text; text-align:center; }
+  #olGo { background:var(--gold); }
+  #olPlayers .sc { color:var(--green); font-size:13px; min-width:0; }
   #itemBtn span { font-size:11px; font-weight:800; color:var(--gold); margin-top:3px; letter-spacing:1px; }
 </style>
 </head>
@@ -204,6 +214,7 @@
     <p class="how">First to <b>1000 m</b> wins. Obstacles don't stop you,<br>but they slow you down.</p>
     <p class="how">Grab <b>❓ crates</b>: 🌾 drop a hay bale · ⚡ turbo<br>👻 send the White Lady after the leader<br><span id="rmKeys"></span></p>
     <div id="lvls"></div>
+    <button id="rmOnline" class="btn other hidden">🌐 RACE A FRIEND<small>Online · send a room code</small></button>
     <div class="row2"><button id="rmBoard" class="ghostbtn">🏆 Race board</button><button id="raceBack" class="ghostbtn">Back</button></div>
   </div>
 
@@ -223,6 +234,32 @@
       <button id="roNext" class="ghostbtn hidden">Next ▶</button>
       <div class="row2"><button id="roLevels" class="ghostbtn">🏁 Levels</button><button id="roBoard" class="ghostbtn">🏆 Board</button><button id="roMenu" class="ghostbtn">Menu</button></div>
     </div>
+  </div>
+
+  <div id="online" class="screen hidden">
+    <h2>🌐 Race a friend</h2>
+    <div id="olChoose" class="olbox">
+      <p class="how">Race a friend on another phone or PC.<br>Same track, same crates. First to 1000 m wins.</p>
+      <button id="olNew" class="big">➕ New room</button>
+      <button id="olJoinOpen" class="ghostbtn">🔑 I have a code</button>
+      <button id="olBack" class="ghostbtn">Back</button>
+    </div>
+    <div id="olJoinBox" class="olbox hidden">
+      <p class="how">Type the room code from your friend</p>
+      <div class="olrow"><input id="olCode" maxlength="7" placeholder="ABCDE" aria-label="Room code" autocomplete="off" spellcheck="false" autocapitalize="characters" enterkeyhint="go"><button id="olGo">Join</button></div>
+      <p id="olJoinMsg" class="how lbbad"></p>
+      <button id="olBack2" class="ghostbtn">Back</button>
+    </div>
+    <div id="olRoom" class="olbox hidden">
+      <p class="how">Room code</p>
+      <b id="olCodeTxt" class="olcode">·····</b>
+      <button id="olShare" class="ghostbtn">📤 Send to a friend</button>
+      <ol id="olPlayers" class="lblist"></ol>
+      <button id="olReady" class="big hidden">READY</button>
+      <button id="olRetry" class="ghostbtn hidden">↻ Try again</button>
+      <button id="olLeave" class="ghostbtn">Leave</button>
+    </div>
+    <p id="olStatus" class="how"></p>
   </div>
 
   <div id="raceBoard" class="screen hidden">
@@ -259,6 +296,7 @@
 <script src="look.js?v=1"></script>
 <script src="board.js?v=7"></script>
 <script src="raceboard.js?v=2"></script>
+<script src="online.js?v=1"></script>
 <script>
   // winkel: kleding kopen met je punten (../shared/shop.js); spaarpot en outfit bij je naam (../shared/wallet.js)
   (function () {
@@ -293,7 +331,7 @@
   })();
 </script>
 <script type="module">
-  if (!window.__dashClassic) import('./game3d.js?v=14').catch(function (e) { if (!window.__dash3dStarted) window.__dashFallback(e && e.message); });
+  if (!window.__dashClassic) import('./game3d.js?v=16').catch(function (e) { if (!window.__dash3dStarted) window.__dashFallback(e && e.message); });
 </script>
 <script>
   // Start de 3D-versie na 15 s nog niet (heel traag netwerk, oude browser), dan de platte versie.
