@@ -32,7 +32,11 @@ export const LEVELS = {
 };
 export const LEVEL_ORDER = ['rookie', 'advanced', 'pro', 'expert'];
 // sommige dingen zijn lastiger dan andere (de geest zweeft heen en weer, een gedropte baal komt onverwacht)
-const FAIL_MUL = { bale: 1, fence: 0.8, wolf: 1.1, crow: 1, ghost: 1.5, drop: 1.4, sent: 1.6 };
+const FAIL_MUL = { bale: 1, fence: 0.8, wolf: 1.1, crow: 1, ghost: 1.5, drop: 1.4 };
+// De Witte Wief die iemand je stuurt, volgt jouw baan (zo snel zijwaarts). Uitwijken lukt pas op het laatste moment
+// (zij kan dan niet meer bijsturen). De computer mist dat moment vaker dan een gewone geest: kans 0,25 + 2× zijn 'fail'.
+export const GHOST_TRACK = 90; // px/s zijwaarts (een baan is 67 px: wie in de laatste ~0,45 s opzij gaat, ontwijkt haar)
+const SENT_FAIL = L => Math.min(0.9, 0.25 + L.fail * 2);
 
 export function mulberry32(a) {
   return () => {
@@ -161,10 +165,10 @@ export class Cpu {
   fails(o) {
     const k = o.by ? 'd' + o.id : o.sent ? 's' + o.id : o.g;
     if (!this.fate.has(k)) {
-      const kind = o.by ? 'drop' : o.sent ? 'sent' : o.type;
-      let p = this.L.fail * (FAIL_MUL[kind] || 1);
-      // iets wat de speler net voor hem gooit: hoe minder tijd, hoe groter de kans dat hij het niet ziet (net als een mens)
-      if (o.by || o.sent) p += Math.min(1, Math.max(0, (0.9 - (o.d - this.dist) / Math.max(100, this.speed)) / 0.5)) * 0.45;
+      const kind = o.by ? 'drop' : o.type;
+      let p = o.sent ? SENT_FAIL(this.L) : this.L.fail * (FAIL_MUL[kind] || 1);
+      // een baal die de speler net voor hem gooit: hoe minder tijd, hoe groter de kans dat hij hem niet ziet (net als een mens)
+      if (o.by) p += Math.min(1, Math.max(0, (0.9 - (o.d - this.dist) / Math.max(100, this.speed)) / 0.5)) * 0.45;
       this.fate.set(k, this.rng() < p);
     }
     return this.fate.get(k);
@@ -181,7 +185,8 @@ export class Cpu {
     return out;
   }
   // klok voor de zwaai van de geest: die van het spel (env.time = G.time), zodat hij hier zweeft zoals je hem ziet
-  gx(o) { return ghostX(o.ph || 0, this.clock); }
+  // (een gestuurde geest zweeft niet, die volgt zijn baan: o.x)
+  gx(o) { return o.sent ? o.x : ghostX(o.ph || 0, this.clock); }
   step(dt, env) {
     this.clock = env && typeof env.time === 'number' ? env.time : this.time;
     if (this.finished) {
@@ -210,9 +215,20 @@ export class Cpu {
     this.px = Math.abs(dx) <= st ? tx : this.px + Math.sign(dx) * st;
     this.moveT = Math.max(0, this.moveT - dt);
     this.jumpStep(dt);
-    for (const o of this.incoming) o.d -= 40 * dt; // gestuurde geest zweeft naar hem toe
+    // gestuurde geest: zweeft naar hem toe en schuift mee naar zijn baan
+    for (const o of this.incoming) {
+      o.d -= 40 * dt;
+      const gx = typeof o.x === 'number' ? o.x : this.px;
+      o.x = gx + Math.max(-GHOST_TRACK * dt, Math.min(GHOST_TRACK * dt, this.px - gx));
+    }
     this.think(env);
     this.collide(env);
+    // voorbij zonder hem te raken: ontweken (het spel laat dat weten)
+    for (const o of this.incoming) {
+      if (this.done.has(o.id) || o.d > this.dist - 30) continue;
+      this.done.add(o.id);
+      if (env.dodged) env.dodged(this, o);
+    }
     this.useItem(dt, env);
     if (this.dist >= FINISH_D) {
       this.finished = true;
@@ -229,10 +245,31 @@ export class Cpu {
   think(env) {
     const look = Math.max(120, this.speed * this.L.react);
     const list = this.near(env, this.dist - 10, this.dist + look);
+    // 1) een gestuurde Witte Wief vlak voor hem gaat voor: op het laatste moment een baan opzij (eerder heeft geen zin,
+    //    ze volgt je), naar een baan zonder ander gevaar. Daarna niet terug haar baan in zolang ze er nog is.
+    let ghostLane = -1;
+    const sg = this.incoming.find(o => !this.done.has(o.id) && o.d >= this.dist - 30 && o.d <= this.dist + look);
+    if (sg && !this.fails(sg)) {
+      const tA = Math.max(0, sg.d - this.dist) / (this.speed + 40);
+      if (tA < 0.45) {
+        ghostLane = Math.max(0, Math.min(2, Math.round((sg.x - this.laneX(0)) / (this.laneX(1) - this.laneX(0)))));
+        // waar is ze als ze bij mij is? (ze schuift nog GHOST_TRACK px/s mijn kant op)
+        const reach = GHOST_TRACK * tA, xa = sg.x + Math.max(-reach, Math.min(reach, this.px - sg.x));
+        if (tA < 0.4 && Math.abs(xa - this.px) < 28 && this.moveT <= 0) {
+          const soon = list.filter(o => o !== sg && o.d - this.dist < this.speed * 0.5 && o.type !== 'crate' && o.type !== 'finish');
+          const valid = l => l >= 0 && l <= 2 && Math.abs(this.laneX(l) - sg.x) > 40;
+          const ok = l => valid(l) && !soon.some(o => blocks(o, l, this.laneX));
+          const pref = sg.x > this.px ? [this.lane - 1, this.lane + 1] : [this.lane + 1, this.lane - 1];
+          const to = pref.find(ok) ?? pref.find(valid);
+          if (to !== undefined) { this.lane = to; this.moveT = this.L.gap; return; }
+        }
+      }
+    }
+    // 2) gewone gevaren
     let grp = null, gk = null;
     for (const o of list) {
-      if (o.type === 'crate' || o.type === 'finish' || this.done.has(o.id)) continue;
-      const k = o.by || o.sent ? o.id : o.g;
+      if (o.type === 'crate' || o.type === 'finish' || o.sent || this.done.has(o.id)) continue;
+      const k = o.by ? o.id : o.g;
       if (gk === null) { gk = k; grp = []; }
       if (k === gk) grp.push(o);
     }
@@ -246,9 +283,11 @@ export class Cpu {
       const g = grp[0], tA = Math.max(0, ahead) / (this.speed + 40), x = ghostX(g.ph || 0, this.clock + tA);
       unsafe = [0, 1, 2].map(l => Math.abs(this.laneX(l) - x) < 50);
     } else unsafe = [0, 1, 2].map(l => grp.some(o => blocks(o, l, this.laneX)));
+    // niet terug de baan van de Witte Wief in, en er ook niet doorheen naar de baan aan de andere kant
+    const viaGhost = l => ghostLane >= 0 && ghostLane !== this.lane && (l === ghostLane || (ghostLane - this.lane) * (ghostLane - l) < 0);
     if (!unsafe[this.lane]) return;
     let best = -1;
-    for (let l = 0; l < 3; l++) if (!unsafe[l] && (best < 0 || Math.abs(l - this.lane) < Math.abs(best - this.lane))) best = l;
+    for (let l = 0; l < 3; l++) if (!unsafe[l] && !viaGhost(l) && (best < 0 || Math.abs(l - this.lane) < Math.abs(best - this.lane))) best = l;
     const jumpable = grp.every(o => o.type === 'bale');
     // twee banen ver en weinig tijd: springen gaat sneller
     if (jumpable && (best < 0 || (Math.abs(best - this.lane) > 1 && ahead < this.speed * 0.45))) { this.planJump(ahead); return; }
