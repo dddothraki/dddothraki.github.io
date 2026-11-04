@@ -369,10 +369,11 @@ export class NetRival {
     if (this.seen) {
       // langer dan 0,6 s niets gehoord (verbinding hapert): niet eindeloos doorschatten, maar uitlopen
       const age = Math.min(0.6, Math.max(0, (now - this.tAt) / 1000));
-      this.speed = now - this.tAt < 600 ? this.netSpeed : Math.max(0, this.speed - 600 * dt);
+      const stale = now - this.tAt >= 600;
+      this.speed = stale ? Math.max(0, this.speed - 600 * dt) : this.netSpeed;
       this.dist += this.speed * dt;
       const err = this.tD + this.netSpeed * age - this.dist;
-      if (Math.abs(err) > 400) this.dist += err; else this.dist += err * Math.min(1, dt * 5);
+      if (!(stale && err < 0)) { if (Math.abs(err) > 400) this.dist += err; else this.dist += err * Math.min(1, dt * 5); }
     }
     const tx = this.laneX(this.lane), dx = tx - this.px, st = 1500 * dt;
     this.px = Math.abs(dx) <= st ? tx : this.px + Math.sign(dx) * st;

@@ -246,7 +246,7 @@
     </div>
     <div id="olJoinBox" class="olbox hidden">
       <p class="how">Type the room code from your friend</p>
-      <div class="olrow"><input id="olCode" maxlength="7" placeholder="ABCDE" aria-label="Room code" autocomplete="off" spellcheck="false" autocapitalize="characters" enterkeyhint="go"><button id="olGo">Join</button></div>
+      <div class="olrow"><input id="olCode" maxlength="80" placeholder="ABCDE" aria-label="Room code" autocomplete="off" spellcheck="false" autocapitalize="characters" enterkeyhint="go"><button id="olGo">Join</button></div>
       <p id="olJoinMsg" class="how lbbad"></p>
       <button id="olBack2" class="ghostbtn">Back</button>
     </div>
@@ -296,7 +296,7 @@
 <script src="look.js?v=1"></script>
 <script src="board.js?v=7"></script>
 <script src="raceboard.js?v=2"></script>
-<script src="online.js?v=1"></script>
+<script src="online.js?v=3"></script>
 <script>
   // winkel: kleding kopen met je punten (../shared/shop.js); spaarpot en outfit bij je naam (../shared/wallet.js)
   (function () {
@@ -331,7 +331,7 @@
   })();
 </script>
 <script type="module">
-  if (!window.__dashClassic) import('./game3d.js?v=16').catch(function (e) { if (!window.__dash3dStarted) window.__dashFallback(e && e.message); });
+  if (!window.__dashClassic) import('./game3d.js?v=17').catch(function (e) { if (!window.__dash3dStarted) window.__dashFallback(e && e.message); });
 </script>
 <script>
   // Start de 3D-versie na 15 s nog niet (heel traag netwerk, oude browser), dan de platte versie.

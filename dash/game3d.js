@@ -3,7 +3,7 @@
 // De spellogica rekent nog in "logische pixels" (zoals de platte versie); render() zet dat om
 // naar 3D: 1 baan = LANE_W px = 5 studs.
 import * as THREE from './vendor/three.module.min.js';
-import * as Race from './race.js?v=5'; // RACE tegen de computer: parcours, snelheid, spullen, tegenstander
+import * as Race from './race.js?v=6'; // RACE tegen de computer: parcours, snelheid, spullen, tegenstander
 
 // Draait de platte versie al (bijvoorbeeld na de laad-time-out), dan niets doen.
 if (window.__dashClassic) throw new Error('classic active');
@@ -963,6 +963,7 @@ function raceStart(level, online) {
     count: online ? Math.max(0.01, (online.start - clock()) / 1000) : 3, t: 0, finished: false, finishT: 0, endT: 0, won: false,
     cpuShown: false, toGo: [500, 100], online: online || null,
   };
+  R.shown = Math.min(3, Math.max(1, Math.ceil(R.count))); // getal dat het aftellen nu laat zien
   if (online) {
     // ieder begint in een eigen buitenbaan, dan zie je elkaar meteen
     const mine = online.slot === 1 ? 2 : 0;
@@ -998,7 +999,7 @@ function raceStart(level, online) {
   paused = false;
   raceScreens(true);
   show('title', false); show('over', false); show('pause', false); show('hud', true);
-  banner(String(Math.min(3, Math.max(1, Math.ceil(R.count)))), `vs ${R.L.name} · first to ${Race.RACE_M} m wins`, 1.0); // online ~3,5 s: eerst '3'
+  banner(String(R.shown), `vs ${R.L.name} · first to ${Race.RACE_M} m wins`, 1.0); // online ~3,5 s: eerst '3'
   Sound.beep(false);
 }
 // elk beeld tijdens een race: aftellen, tegenstander, spullen, finish
@@ -1009,7 +1010,7 @@ function raceTick(dt) {
     R.count = R.online ? (R.online.start - clock()) / 1000 : R.count - dt;
     const now = Math.ceil(R.count);
     if (now !== was) {
-      if (now > 0) { if (now <= 3) { banner(String(now), `vs ${R.L.name} · first to ${Race.RACE_M} m wins`, 1.0); Sound.beep(false); } }
+      if (now > 0) { if (now < R.shown) { R.shown = now; banner(String(now), `vs ${R.L.name} · first to ${Race.RACE_M} m wins`, 1.0); Sound.beep(false); } }
       else { banner('GO!', '', 0.9); Sound.beep(true); if (RB && !R.online) RB.go(R.level); }
     }
   } else {
@@ -1120,9 +1121,13 @@ function raceFinish() {
   R.finishT = R.t - (G.dist - Race.FINISH_D) / Math.max(1, G.speed);
   R.won = !(c.finished && c.finishT <= R.finishT);
   R.item = null; itemHud();
+  if (R.online) { // de server beslist wie er won (en het geluid komt dan)
+    banner('FINISHED!', Race.fmtTime(R.finishT), 2.2);
+    if (window.DashOnline) window.DashOnline.fin(R.finishT);
+    return;
+  }
   if (R.won) { Sound.win(); banner('🏆 YOU WIN!', Race.fmtTime(R.finishT), 2.2); }
   else { Sound.lose(); banner('FINISHED', Race.fmtTime(R.finishT), 2.2); }
-  if (R.online) { if (window.DashOnline) window.DashOnline.fin(R.finishT); return; } // de server beslist wie er won
   // meteen vastleggen (en insturen met een naam): sluit de pagina in de seconden hierna, dan telt het toch.
   // Het antwoord van de server (plek op het scorebord) komt op het eindscherm als het er is.
   R.before = raceRec(R.level);
@@ -1169,6 +1174,7 @@ function openRaceOver() {
 }
 // knoppen op het eindscherm: tegen de computer of online
 function raceOverButtons(online) {
+  $('roAgain').disabled = false;
   $('roAgain').textContent = online ? '↻ Rematch' : '↻ Race again';
   $('roMenu').textContent = online ? 'Leave' : 'Menu';
   show('roLevels', !online); show('roBoard', !online && !!RB);
@@ -1210,7 +1216,11 @@ function onlineResults(R) {
       store.set('versus', o);
     }
   } else if (R.lost) { title = 'CONNECTION LOST'; diff = 'No result this time.'; }
-  else { title = R.won ? 'FINISHED FIRST!' : 'FINISHED'; diff = c.quit ? `${nm} left the race.` : `Waiting for ${nm}…`; them = c.finished ? c.finishT : null; }
+  else { title = 'FINISHED!'; diff = c.quit ? `${nm} left the race.` : `Waiting for ${nm}…`; them = c.finished ? c.finishT : null; }
+  // rematch pas als de uitslag binnen is (anders zie je hem nooit)
+  const waiting = !res && !R.lost;
+  $('roAgain').disabled = waiting;
+  $('roAgain').textContent = waiting ? 'Waiting for the result…' : '↻ Rematch';
   $('roTitle').textContent = title;
   $('roYou').textContent = Race.fmtTime(you);
   $('roCpu').textContent = them ? Race.fmtTime(them) : c.quit || (res && !them) ? 'left' : '…';
@@ -1230,9 +1240,20 @@ if (window.DashOnline) {
   const ON = window.DashOnline;
   const live = () => (G && G.race && G.race.online ? G.race : null);
   ON.game = {
-    start(info) { if (mode === 'loading') return; paused = false; show('pause', false); raceStart('online', info); },
+    start(info) {
+      if (mode === 'loading') return;
+      paused = false; show('pause', false);
+      raceStart('online', info);
+      if (document.hidden) setPaused(true); // tabblad niet in beeld: niet zomaar beginnen
+    },
     p(m) { const R = live(); if (R) R.cpu.apply(m, clock()); },
-    drop(m) { const R = live(); if (R && !R.finished) R.drops.push({ id: 'r' + (++R.nDrop), type: 'bale', lane: m.l, x: laneX(m.l), d: m.d, by: 'cpu' }); },
+    drop(m) {
+      const R = live(); if (!R || R.finished) return;
+      // door de vertraging kan hij hier vlak voor je neus landen: dan zelfde regel als dropSpot (valt achter je, mis)
+      let d = m.d;
+      if (d > G.dist - 24 && d - G.dist < Math.max(120, G.speed * 0.45)) d = G.dist - 40;
+      R.drops.push({ id: 'r' + (++R.nDrop), type: 'bale', lane: m.l, x: laneX(m.l), d, by: 'cpu' });
+    },
     ghost() { const R = live(); if (R) R.env.sendGhost(R.cpu); },
     fin(m, mine) { const R = live(); if (!R || mine) return; R.cpu.finished = true; R.cpu.finishT = m.time; },
     quit(m, mine) {
@@ -1241,7 +1262,13 @@ if (window.DashOnline) {
       if (!R.finished && mode === 'play') banner(`${R.L.name} LEFT`, 'Finish the race to win!', 2);
       else if (mode === 'over') onlineResults(R);
     },
-    done(m) { const R = live(); if (!R || m.round !== R.online.round) return; R.result = m; if (mode === 'over') onlineResults(R); },
+    done(m) {
+      const R = live(); if (!R || m.round !== R.online.round || R.result) return;
+      R.result = m;
+      if (m.winner === R.online.slot) Sound.win(); else Sound.lose();
+      if (mode === 'over') onlineResults(R);
+      else if (R.finished) banner(m.winner === R.online.slot ? '🏆 YOU WIN!' : m.winner === -1 ? 'NO WINNER' : `${R.L.name} WINS`, '', 1.6);
+    },
     lost() {
       const R = live(); if (!R) return;
       R.lost = true;
@@ -1605,7 +1632,7 @@ function render(dt = 0) {
   if (rival) {
     const R = G.race, c = R && R.cpu;
     let vis = false;
-    if (c && (mode === 'play' || mode === 'over')) {
+    if (c && (mode === 'play' || mode === 'over') && !c.quit && !(R.online && R.lost)) {
       const ry = PY - (c.dist - G.dist);
       // in beeld; maar vlak achter je in dezelfde baan niet, dan staat hij tussen de camera en jou
       vis = ry > PY - AHEAD && ry < PY + 70 && !(ry > PY - 30 && Math.abs(c.px - G.px) < 46);
@@ -1834,7 +1861,13 @@ function frame(now) {
   }
   const t0 = performance.now();
   if (mode !== 'loading' && !contextLost) {
-    if (!paused && mode !== 'over' && !hold) update(dt);
+    if (!paused && mode !== 'over' && !hold) {
+      if (G && G.race && G.race.online && mode === 'play') {
+        // online telt de wandklok: een trage telefoon (of een hapering) mag je geen meters kosten
+        let left = Math.min(raw, 0.4), n = 0;
+        while (left > 1e-4 && n++ < 8 && mode === 'play') { const s = Math.min(0.05, left); update(s); left -= s; }
+      } else update(dt);
+    }
     // bij pauze en op het eindscherm hoeft het beeld bijna niet te veranderen: spaart de batterij
     const still = !(window.DashLook && window.DashLook.shop) && (paused || (mode === 'over' && player && Math.abs(player.position.y) < 0.01));
     if (!still || now - lastDraw > 500) { render(paused || mode === 'over' ? 0 : dt); lastDraw = now; }
@@ -1872,7 +1905,7 @@ loadModels(p => { playBtn.textContent = `Loading… ${Math.round(p * 100)}%`; })
   for (const o of warm) { o.view = createView(o); o.view.position.set(0, 0, -8); }
   const warmRipple = rippleMesh(); warmRipple.position.set(0, 0.05, -8);
   // link van een vriend (?room=CODE): na het laden meteen de kamer in
-  if (window.DashOnline) setTimeout(() => window.DashOnline.boot(), 300);
+  if (window.DashOnline) setTimeout(() => { if (mode === 'title') window.DashOnline.boot(); }, 300);
   if (rival) { rival.visible = true; rival.position.set(2, 0, -8); }
   try { renderer.compile(scene, camera); renderer.render(scene, camera); } catch (e) { /* oudere browsers */ }
   for (const o of warm) releaseView(o);
