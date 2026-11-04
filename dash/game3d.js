@@ -3,7 +3,7 @@
 // De spellogica rekent nog in "logische pixels" (zoals de platte versie); render() zet dat om
 // naar 3D: 1 baan = LANE_W px = 5 studs.
 import * as THREE from './vendor/three.module.min.js';
-import * as Race from './race.js?v=3'; // RACE tegen de computer: parcours, snelheid, spullen, tegenstander
+import * as Race from './race.js?v=4'; // RACE tegen de computer: parcours, snelheid, spullen, tegenstander
 
 // Draait de platte versie al (bijvoorbeeld na de laad-time-out), dan niets doen.
 if (window.__dashClassic) throw new Error('classic active');
@@ -962,15 +962,18 @@ function raceStart(level) {
     dropBale(c) { R.drops.push({ id: 'c' + (++R.nDrop), type: 'bale', lane: c.lane, x: laneX(c.lane), d: Race.dropSpot(c, G), by: 'cpu' }); },
     sendGhost(c) {
       if (R.finished || G.dist <= c.dist) return;
-      G.objs.push({ type: 'ghost', x: 180, d: G.dist + 620, ph: rnd(0, Math.PI * 2), sang: true, sent: true });
-      banner('👻 THE WHITE LADY!', `${R.L.name} sent her after you!`, 1.8);
+      G.objs.push({ type: 'ghost', x: G.px, d: G.dist + 620, ph: rnd(0, Math.PI * 2), sang: true, sent: true });
+      banner('👻 THE WHITE LADY!', 'She follows you... dodge at the last moment!', 1.8);
       Sound.ghost();
     },
-    hit(c, res) {
+    hit(c, res, o) {
+      // de Witte Wief die jij stuurde was raak: altijd laten weten, ook als hij buiten beeld is
+      if (o && o.sent && !R.finished) banner(res === 'smash' ? `${R.L.name} SMASHED HER` : `👻 SHE GOT ${R.L.name}!`, res === 'smash' ? 'Turbo...' : 'Speed lost!', 1.4);
       const y = PY - (c.dist - G.dist);
       if (y < PY - AHEAD || y > PY + 80) return; // niet in beeld
       for (let i = 0; i < 10; i++) part(c.px + rnd(-10, 10), y, rnd(-70, 70), rnd(-40, 20), 0.5, res === 'smash' ? 0xd8b46a : 0x8a7656, 0.4, true, rnd(0.2, 1.2), rnd(2, 4));
     },
+    dodged(c, o) { if (o.sent && !R.finished) banner(`${R.L.name} DODGED HER`, 'So close...', 1.2); },
   };
   G.speed = 0;
   setRivalLook(level);
@@ -1060,7 +1063,7 @@ function useItem() {
     Sound.land(); banner('🌾 BALE DROPPED', '', 0.9);
   } else if (it === 'ghost') {
     if (c.dist > G.dist && !c.finished) {
-      c.incoming.push({ id: 's' + (++R.nDrop), type: 'ghost', x: 180, d: c.dist + 620, ph: rnd(0, Math.PI * 2), sent: true });
+      c.incoming.push({ id: 's' + (++R.nDrop), type: 'ghost', x: c.px, d: c.dist + 620, ph: rnd(0, Math.PI * 2), sent: true });
       Sound.ghost(); banner('👻 WHITE LADY SENT', `She's after ${R.L.name}...`, 1.4);
     } else if (c.finished) banner('TOO LATE', `${R.L.name} already finished`, 1.2);
     else banner('NOBODY AHEAD', 'The White Lady drifts away...', 1.2);
@@ -1381,7 +1384,10 @@ function update(rdt) {
       o.x = Math.abs(dx) < 900 * dt ? tx : o.x + Math.sign(dx) * 900 * dt;
       o.flare = Math.max(0, o.flare - dt * 0.8);
     } else if (o.type === 'ghost') {
-      o.x = 180 + Math.sin(o.ph + G.time * 1.7) * 88;
+      // gestuurde Witte Wief: volgt jouw baan (uitwijken op het laatste moment); die achter de computer aan volgt hem
+      if (o.ref) o.x = o.ref.x;
+      else if (o.sent) o.x += clamp(G.px - o.x, -Race.GHOST_TRACK * dt, Race.GHOST_TRACK * dt);
+      else o.x = 180 + Math.sin(o.ph + G.time * 1.7) * 88;
       if (!o.sang && o.y > near) { o.sang = true; Sound.ghost(); hint('ghost', 'THE WHITE LADY', 'She drifts side to side... time it!'); }
     } else if (o.type === 'fence' && o.y > PY - 330) {
       hint('fence', 'FENCE AHEAD', 'Swipe ↑ or tap to JUMP!');
